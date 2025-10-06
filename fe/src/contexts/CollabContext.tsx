@@ -1,3 +1,5 @@
+import { be_url } from "@/env/e";
+import { IsInARoom } from "@/lib/ext";
 import React, { useReducer, useEffect, useContext } from "react";
 import { io, Socket } from "socket.io-client";
 
@@ -40,6 +42,13 @@ interface CollabContextType {
   updateCursor: (cursor: { x: number; y: number }) => void;
   updateDrawingStatus: (isDrawing: boolean, elementId?: string) => void;
   clearError: () => void;
+  isUserInCurrentRoom: (userId?: string) => boolean;
+  checkRoomStatus: (roomId: string, userId: string) => Promise<boolean>;
+  getCurrentRoomInfo: () => {
+    roomId: string | null;
+    userId: string | null;
+    collaboratorsCount: number;
+  };
 }
 
 const initialState: CollabState = {
@@ -156,7 +165,7 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     dispatch({ type: "SOCKET_CONNECTING" });
 
-    const socket = io("http://localhost:3000", {
+    const socket = io(be_url, {
       withCredentials: true,
       transports: ["websocket", "polling"],
     });
@@ -204,9 +213,6 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     socket.on("operation_applied", (data) => {
-      console.log("=== FRONTEND: Received operation_applied ===");
-      console.log("Data received:", JSON.stringify(data, null, 2));
-
       // Dispatch custom event for drawing components to handle
       window.dispatchEvent(
         new CustomEvent("collab_operation", { detail: data })
@@ -230,6 +236,22 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
           new CustomEvent("collab_laser_clear", {
             detail: { userId },
           })
+        );
+      }
+    });
+
+    // Handle room left confirmation
+    socket.on("room_left", ({ success, error }) => {
+      console.log("Room left response:", { success, error });
+      if (success) {
+        dispatch({ type: "LEAVE_ROOM" });
+        console.log("Successfully left room - state updated");
+        // Dispatch custom event for components to handle
+        window.dispatchEvent(new CustomEvent("room_left_success"));
+      } else {
+        console.error("Failed to leave room:", error);
+        window.dispatchEvent(
+          new CustomEvent("room_left_error", { detail: { error } })
         );
       }
     });
@@ -264,9 +286,15 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
 
   const leaveRoom = () => {
     if (state.socket && state.roomId) {
+      console.log("Emitting leave_room event for roomId:", state.roomId);
       state.socket.emit("leave_room", { roomId: state.roomId });
+      // Don't dispatch LEAVE_ROOM here - wait for server confirmation via "room_left" event
+    } else {
+      console.error("Cannot leave room: missing socket or roomId", {
+        hasSocket: !!state.socket,
+        roomId: state.roomId,
+      });
     }
-    dispatch({ type: "LEAVE_ROOM" });
   };
 
   const sendOperation = (operation: any) => {
@@ -321,6 +349,46 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     dispatch({ type: "CLEAR_ERROR" });
   };
 
+  const isUserInCurrentRoom = (userId?: string): boolean => {
+    if (!state.isCollaborating || !state.roomId || !state.userId) {
+      return false;
+    }
+
+    if (userId) {
+      return state.userId === userId && state.isConnected;
+    }
+
+    return state.isConnected;
+  };
+
+  const checkRoomStatus = async (
+    roomId: string,
+    userId: string
+  ): Promise<boolean> => {
+    if (!state.socket || !roomId || !userId) {
+      return false;
+    }
+
+    try {
+      const response = await IsInARoom({
+        params: { roomId, userId },
+        _Socket: state.socket,
+      });
+      return response.isInRoom;
+    } catch (error) {
+      console.error("Error checking room status:", error);
+      return false;
+    }
+  };
+
+  const getCurrentRoomInfo = () => {
+    return {
+      roomId: state.roomId,
+      userId: state.userId,
+      collaboratorsCount: state.collaborators.length,
+    };
+  };
+
   const contextValue: CollabContextType = {
     state,
     joinRoom,
@@ -329,6 +397,9 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     updateCursor,
     updateDrawingStatus,
     clearError,
+    isUserInCurrentRoom,
+    checkRoomStatus,
+    getCurrentRoomInfo,
   };
 
   return (
@@ -349,12 +420,29 @@ export const useCollab = () => {
 
 const getRandomColor = () => {
   const colors = [
-    "#ff6b6b",
-    "#4ecdc4",
-    "#45b7d1",
-    "#96ceb4",
-    "#feca57",
-    "#ff9ff3",
+    "#ff6b6b", // red
+    "#4ecdc4", // teal
+    "#45b7d1", // blue
+    "#96ceb4", // green
+    "#feca57", // yellow-orange
+    "#ff9ff3", // pink
+    "#54a0ff", // light blue
+    "#5f27cd", // purple
+    "#01a3a4", // dark teal
+    "#2ecc71", // emerald green
+    "#e74c3c", // bright red
+    "#f39c12", // orange
+    "#8e44ad", // violet
+    "#d35400", // pumpkin
+    "#1abc9c", // turquoise
+    "#3498db", // sky blue
+    "#9b59b6", // lavender purple
+    "#34495e", // dark slate
+    "#16a085", // sea green
+    "#27ae60", // jade green
+    "#2980b9", // ocean blue
+    "#c0392b", // crimson
+    "#f1c40f", // sunflower yellow
   ];
   return colors[Math.floor(Math.random() * colors.length)];
 };

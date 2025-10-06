@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import compression from "compression";
@@ -6,6 +6,9 @@ import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { CollabDrawingServer } from "./services/socket.service";
 import roomRouter from "./routes/rooms.routes";
+import dotenv from "dotenv";
+import { fe_url, PORT } from "./env/e";
+dotenv.config();
 
 const app = express();
 
@@ -21,7 +24,7 @@ app.use(compression());
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: fe_url,
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -36,27 +39,15 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Health check route
-app.get("/health", (req, res) => {
+app.get("/health", (req: Request, res: Response) => {
   const stats = collabServer.getConnectionStats();
   res.json({
     status: "healthy",
     timestamp: Date.now(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
     connections: stats,
   });
 });
 
 app.use("/api/rooms", roomRouter);
 
-const PORT = 3000;
-
 httpServer.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-
-// Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down gracefully");
-  httpServer.close(() => {
-    process.exit(0);
-  });
-});

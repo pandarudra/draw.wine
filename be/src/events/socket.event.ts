@@ -1,4 +1,4 @@
-import { Server as SocketServer } from "socket.io";
+import { Server as SocketServer, Socket } from "socket.io";
 import type { User, Room, DrawingOperation } from "../types";
 
 const rooms = new Map<string, Room>();
@@ -17,83 +17,92 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 export const ExecSocketEvents = (io: SocketServer) => {
-  io.on("connection", (socket) => {
+  io.on("connection", (socket: Socket) => {
     console.log(`New client connected: ${socket.id}`);
 
-    socket.on("join_room", ({ roomId, user }) => {
-      try {
-        console.log(`User ${user.name} joining room ${roomId}`);
+    socket.on(
+      "join_room",
+      ({
+        roomId,
+        user,
+      }: {
+        roomId: string;
+        user: Omit<User, "socketId" | "joinedAt">;
+      }) => {
+        try {
+          console.log(`User ${user.name} joining room ${roomId}`);
 
-        socket.join(roomId);
+          socket.join(roomId);
 
-        // Create room if doesn't exist
-        if (!rooms.has(roomId)) {
-          rooms.set(roomId, {
-            id: roomId,
-            users: new Map(),
-            elements: [],
-            lastActivity: Date.now(),
-            createdAt: Date.now(),
-          });
-        }
-
-        const room = rooms.get(roomId)!;
-
-        // Remove any existing user with the same ID (in case of reconnection)
-        for (const [existingUserId, existingUser] of room.users) {
-          if (
-            existingUser.socketId === socket.id ||
-            existingUserId === user.id
-          ) {
-            room.users.delete(existingUserId);
-            console.log(
-              `Removed existing user ${existingUserId} from room ${roomId}`
-            );
+          // Create room if doesn't exist
+          if (!rooms.has(roomId)) {
+            rooms.set(roomId, {
+              id: roomId,
+              users: new Map(),
+              elements: [],
+              lastActivity: Date.now(),
+              createdAt: Date.now(),
+            });
           }
+
+          const room = rooms.get(roomId)!;
+
+          // Remove any existing user with the same ID (in case of reconnection)
+          for (const [existingUserId, existingUser] of room.users) {
+            if (
+              existingUser.socketId === socket.id ||
+              existingUserId === user.id
+            ) {
+              room.users.delete(existingUserId);
+              console.log(
+                `Removed existing user ${existingUserId} from room ${roomId}`
+              );
+            }
+          }
+
+          // Add user to room
+          const fullUser: User = {
+            ...user,
+            socketId: socket.id,
+            joinedAt: Date.now(),
+            color: user.color || getRandomColor(),
+          };
+
+          room.users.set(user.id, fullUser);
+          room.lastActivity = Date.now();
+
+          // Send current room state to new user
+          socket.emit("room_joined", {
+            roomId,
+            elements: room.elements,
+            collaborators: Array.from(room.users.values()).map((u) => ({
+              id: u.id,
+              name: u.name,
+              color: u.color,
+              cursor: u.cursor,
+              isDrawing: u.isDrawing,
+            })),
+          });
+
+          // Notify other users about new collaborator
+          socket.to(roomId).emit(
+            "collaborators_updated",
+            Array.from(room.users.values()).map((u) => ({
+              id: u.id,
+              name: u.name,
+              color: u.color,
+              cursor: u.cursor,
+              isDrawing: u.isDrawing,
+            }))
+          );
+
+          console.log(`Room ${roomId} now has ${room.users.size} users`);
+        } catch (error) {
+          console.error("Error joining room:", error);
+          socket.emit("error", { message: "Failed to join room" });
         }
-
-        // Add user to room
-        const fullUser: User = {
-          ...user,
-          socketId: socket.id,
-          joinedAt: Date.now(),
-          color: user.color || getRandomColor(),
-        };
-
-        room.users.set(user.id, fullUser);
-        room.lastActivity = Date.now();
-
-        // Send current room state to new user
-        socket.emit("room_joined", {
-          roomId,
-          elements: room.elements,
-          collaborators: Array.from(room.users.values()).map((u) => ({
-            id: u.id,
-            name: u.name,
-            color: u.color,
-            cursor: u.cursor,
-            isDrawing: u.isDrawing,
-          })),
-        });
-
-        // Notify other users about new collaborator
-        socket.to(roomId).emit(
-          "collaborators_updated",
-          Array.from(room.users.values()).map((u) => ({
-            id: u.id,
-            name: u.name,
-            color: u.color,
-            cursor: u.cursor,
-            isDrawing: u.isDrawing,
-          }))
-        );
-
-        console.log(`Room ${roomId} now has ${room.users.size} users`);
-      } catch (error) {
-        console.error("Error joining room:", error);
-        socket.emit("error", { message: "Failed to join room" });
       }
-    });
+    );
 
     socket.on("drawing_operation", (data: any) => {
       try {
@@ -202,63 +211,136 @@ export const ExecSocketEvents = (io: SocketServer) => {
       }
     });
 
-    socket.on("cursor_update", ({ roomId, position }) => {
-      try {
-        const room = rooms.get(roomId);
-        if (!room) return;
+    socket.on(
+      "cursor_update",
+      ({
+        roomId,
+        position,
+      }: {
+        roomId: string;
+        position: { x: number; y: number };
+      }) => {
+        try {
+          const room = rooms.get(roomId);
+          if (!room) return;
 
-        // Find user and update cursor
-        for (const [userId, user] of room.users) {
-          if (user.socketId === socket.id) {
-            user.cursor = position;
-            break;
+          // Find user and update cursor
+          for (const [userId, user] of room.users) {
+            if (user.socketId === socket.id) {
+              user.cursor = position;
+              break;
+            }
           }
-        }
 
-        // Broadcast cursor update to other users
-        socket.to(roomId).emit("cursor_moved", {
-          userId: Array.from(room.users.values()).find(
-            (u) => u.socketId === socket.id
-          )?.id,
-          position,
-        });
-      } catch (error) {
-        console.error("Error updating cursor:", error);
+          // Broadcast cursor update to other users
+          socket.to(roomId).emit("cursor_moved", {
+            userId: Array.from(room.users.values()).find(
+              (u) => u.socketId === socket.id
+            )?.id,
+            position,
+          });
+        } catch (error) {
+          console.error("Error updating cursor:", error);
+        }
       }
-    });
+    );
 
     // Handle laser tool events
-    socket.on("laser_point", ({ roomId, point, userId, timestamp }) => {
-      try {
-        const room = rooms.get(roomId);
-        if (!room) return;
+    socket.on(
+      "laser_point",
+      ({
+        roomId,
+        point,
+        userId,
+        timestamp,
+      }: {
+        roomId: string;
+        point: { x: number; y: number };
+        userId: string;
+        timestamp: number;
+      }) => {
+        try {
+          const room = rooms.get(roomId);
+          if (!room) return;
 
-        // Broadcast laser point to other users in room
-        socket.to(roomId).emit("laser_point", {
-          userId,
-          point,
-          timestamp,
-        });
-      } catch (error) {
-        console.error("Error broadcasting laser point:", error);
+          // Broadcast laser point to other users in room
+          socket.to(roomId).emit("laser_point", {
+            userId,
+            point,
+            timestamp,
+          });
+        } catch (error) {
+          console.error("Error broadcasting laser point:", error);
+        }
       }
-    });
+    );
 
-    socket.on("laser_clear", ({ roomId, userId }) => {
-      try {
-        const room = rooms.get(roomId);
-        if (!room) return;
+    socket.on(
+      "laser_clear",
+      ({ roomId, userId }: { roomId: string; userId: string }) => {
+        try {
+          const room = rooms.get(roomId);
+          if (!room) return;
 
-        // Broadcast laser clear to other users in room
-        socket.to(roomId).emit("laser_clear", {
-          userId,
-        });
-      } catch (error) {
-        console.error("Error broadcasting laser clear:", error);
+          // Broadcast laser clear to other users in room
+          socket.to(roomId).emit("laser_clear", {
+            userId,
+          });
+        } catch (error) {
+          console.error("Error broadcasting laser clear:", error);
+        }
       }
-    });
+    );
 
-    socket.on("leave_room", ({ roomId }) => {
+    socket.on(
+      "check-if-in-room",
+      ({ roomId, userId }: { roomId: string; userId: string }) => {
+        try {
+          const room = rooms.get(roomId);
+          let isInRoom = false;
+          let userInfo = null;
+
+          if (room) {
+            const user = room.users.get(userId);
+            if (user && user.socketId === socket.id) {
+              isInRoom = true;
+              userInfo = {
+                id: user.id,
+                name: user.name,
+                color: user.color,
+                joinedAt: user.joinedAt,
+              };
+            }
+          }
+
+          socket.emit("room-status-response", {
+            roomId,
+            userId,
+            isInRoom,
+            userInfo,
+            roomExists: !!room,
+            collaboratorsCount: room?.users.size || 0,
+          });
+
+          console.log(
+            `Room status check for user ${userId} in room ${roomId}: ${isInRoom}`
+          );
+        } catch (error) {
+          console.error("Error checking room status:", error);
+          socket.emit("room-status-response", {
+            roomId,
+            userId,
+            isInRoom: false,
+            userInfo: null,
+            roomExists: false,
+            collaboratorsCount: 0,
+            error: "Failed to check room status",
+          });
+        }
+      }
+    );
+
+    socket.on("leave_room", ({ roomId }: { roomId: string }) => {
       try {
         const room = rooms.get(roomId);
         if (!room) return;
@@ -281,12 +363,20 @@ export const ExecSocketEvents = (io: SocketServer) => {
               }))
             );
 
+            // Send confirmation to the leaving user
+            socket.emit("room_left", { roomId, success: true });
+
             console.log(`User ${user.name} left room ${roomId}`);
             break;
           }
         }
       } catch (error) {
         console.error("Error leaving room:", error);
+        socket.emit("room_left", {
+          roomId,
+          success: false,
+          error: "Failed to leave room",
+        });
       }
     });
 

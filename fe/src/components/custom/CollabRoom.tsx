@@ -1,11 +1,12 @@
-import { useCollab } from "@/hooks/useCollab";
+import { useCollab } from "@/contexts/CollabContext";
 import { PlayGround } from "@/pages/PlayGround";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { v4 as uuidv4 } from "uuid";
 
 export const CollabRoom = () => {
   const [searchParams] = useSearchParams();
-  const roomId = searchParams.get("roomId") || generateRoomId();
+  const roomId = searchParams.get("roomId") || uuidv4().slice(0, 8);
   const userName = searchParams.get("name") || "Guest";
   const { joinRoom, state } = useCollab();
 
@@ -28,6 +29,3 @@ export const CollabRoom = () => {
 
   return <PlayGround />;
 };
-function generateRoomId() {
-  return Math.random().toString(36).substring(2, 8);
-}

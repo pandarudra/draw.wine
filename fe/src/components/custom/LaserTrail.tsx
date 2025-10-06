@@ -45,58 +45,25 @@ export function useLaserTrail() {
   }, [trail]);
 
   const addPoint = (point: Position) => {
-    if (!lastPoint.current) {
-      lastPoint.current = point;
-      setTrail((prev) => [
-        ...prev,
+    const now = Date.now();
+
+    setTrail((prev) => {
+      // Keep points from last 2 seconds
+      const recentPoints = prev.filter((p) => now - p.timestamp < 2000);
+
+      // Add the new point
+      return [
+        ...recentPoints,
         {
           point,
           opacity: 1,
-          timestamp: Date.now(),
+          timestamp: now,
           color: NEON_RED,
         },
-      ]);
-      return;
-    }
+      ];
+    });
 
-    // Calculate distance from last point
-    const dx = point.x - lastPoint.current.x;
-    const dy = point.y - lastPoint.current.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    // Add interpolated points for smoother movement
-    if (distance > 2) {
-      // Smaller threshold for smoother movement
-      const numPoints = Math.max(1, Math.floor(distance / 2)); // Add a point every 2 pixels
-      const points: Position[] = [];
-
-      // Create interpolated points
-      for (let i = 1; i <= numPoints; i++) {
-        points.push({
-          x: lastPoint.current.x + (dx * i) / numPoints,
-          y: lastPoint.current.y + (dy * i) / numPoints,
-        });
-      }
-
-      lastPoint.current = point;
-
-      setTrail((prev) => {
-        // Keep more points for longer trail
-        const recentPoints = prev.filter(
-          (p) => Date.now() - p.timestamp < 2000
-        ); // 2 second trail length
-
-        // Add new interpolated points
-        const newPoints = points.map((p, i) => ({
-          point: p,
-          opacity: 1,
-          timestamp: Date.now() + i * 50, // Stagger timestamps for smoother fade
-          color: NEON_RED,
-        }));
-
-        return [...recentPoints, ...newPoints];
-      });
-    }
+    lastPoint.current = point;
   };
 
   const clearTrail = () => {
@@ -108,9 +75,40 @@ export function useLaserTrail() {
     }
   };
 
+  // Generate smooth SVG path using Catmull-Rom spline
+  const getSmoothPath = () => {
+    if (trail.length < 2) return "";
+
+    const points = trail.map((t) => t.point);
+
+    // For Catmull-Rom spline, we need at least 4 points
+    // Duplicate first and last points for better behavior
+    const allPoints = [points[0], ...points, points[points.length - 1]];
+
+    let path = `M ${allPoints[1].x} ${allPoints[1].y}`;
+
+    for (let i = 1; i < allPoints.length - 2; i++) {
+      const p0 = allPoints[i - 1];
+      const p1 = allPoints[i];
+      const p2 = allPoints[i + 1];
+      const p3 = allPoints[i + 2];
+
+      // Catmull-Rom to Bezier conversion
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    }
+
+    return path;
+  };
+
   return {
     trail,
     addPoint,
     clearTrail,
+    getSmoothPath,
   };
 }

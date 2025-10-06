@@ -1,7 +1,6 @@
 import { CanvasBoard } from "@/components/custom/CanvasBoard";
 import { Left3bar } from "@/components/custom/Left3bar";
 import { Toolbar } from "@/components/custom/Toolbar";
-
 import { DrawingProvider } from "@/contexts/DrawingContext";
 
 export const PlayGround = () => {

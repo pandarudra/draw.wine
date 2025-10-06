@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { v4 } from "uuid";
 
 const CollabRoom = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -109,7 +110,7 @@ const CollabRoom = () => {
 };
 
 function generateRoomId(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  return v4().slice(0, 8);
 }
 
 export default CollabRoom;

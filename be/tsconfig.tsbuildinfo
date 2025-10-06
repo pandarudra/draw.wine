@@ -1,1 +1,0 @@
-{"root":["./src/index.ts","./src/controllers/rooms.controller.ts","./src/events/socket.event.ts","./src/routes/rooms.routes.ts","./src/services/socket.service.ts","./src/types/index.ts","./src/utils/jwt.ts","./src/utils/redisclient.ts"],"version":"5.8.3"}

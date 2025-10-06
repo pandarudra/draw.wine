@@ -1,6 +1,7 @@
 import { Server as SocketServer } from "socket.io";
 import { Server as HTTPServer } from "http";
 import { ExecSocketEvents } from "../events/socket.event";
+import { fe_url } from "../env/e";
 
 export class CollabDrawingServer {
   private static instance: CollabDrawingServer;
@@ -9,7 +10,7 @@ export class CollabDrawingServer {
   private constructor(httpServer: HTTPServer) {
     this._io = new SocketServer(httpServer, {
       cors: {
-        origin: "http://localhost:5173",
+        origin: fe_url,
         credentials: true,
       },
     });
