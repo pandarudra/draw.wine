@@ -13,6 +13,8 @@ const Landing = lazy(() =>
   }))
 );
 
+import { ThemeProvider } from "./contexts/ThemeContext";
+
 const PlayGround = lazy(() =>
   import("./pages/PlayGround").then((module) => ({
     default: module.PlayGround,
@@ -54,17 +56,19 @@ export const App = () => {
   }
 
   return (
-    <BrowserRouter>
-      <CollabProvider>
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/board/:id" element={<PlayGround />} />
-            <Route path="/collab" element={<CollabRoom />} />
-          </Routes>
-        </Suspense>
-        <Toaster />
-      </CollabProvider>
-    </BrowserRouter>
+    <ThemeProvider defaultTheme="light" storageKey="draw-wine-theme">
+      <BrowserRouter>
+        <CollabProvider>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/board/:id" element={<PlayGround />} />
+              <Route path="/collab" element={<CollabRoom />} />
+            </Routes>
+          </Suspense>
+          <Toaster />
+        </CollabProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 };

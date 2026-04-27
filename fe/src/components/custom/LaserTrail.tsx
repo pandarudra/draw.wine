@@ -44,7 +44,7 @@ export function useLaserTrail() {
     };
   }, [trail]);
 
-  const addPoint = (point: Position) => {
+  const addPoint = (point: Position, color: string = NEON_RED) => {
     const now = Date.now();
 
     setTrail((prev) => {
@@ -58,7 +58,7 @@ export function useLaserTrail() {
           point,
           opacity: 1,
           timestamp: now,
-          color: NEON_RED,
+          color,
         },
       ];
     });

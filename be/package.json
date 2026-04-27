@@ -19,8 +19,8 @@
     "express-rate-limit": "^8.1.0",
     "googleapis": "^161.0.0",
     "helmet": "^8.1.0",
-    "nodemailer": "^7.0.6",
     "nodemon": "^3.1.10",
+    "resend": "^6.12.2",
     "socket.io": "^4.8.1",
     "ts-node": "^10.9.2"
   },
@@ -30,7 +30,6 @@
     "@types/express": "^5.0.3",
     "@types/helmet": "^0.0.48",
     "@types/node": "^24.5.2",
-    "@types/nodemailer": "^7.0.1",
     "typescript": "^5.9.2"
   }
 }

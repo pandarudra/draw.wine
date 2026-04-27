@@ -131,7 +131,7 @@
 }
 
 .bg-dot-pattern {
-  background-color: #ffffff;
-  background-image: radial-gradient(#000000 0.5px, #ffffff 0.5px);
+  background-color: var(--background);
+  background-image: radial-gradient(var(--foreground) 0.5px, transparent 0.5px);
   background-size: 10px 10px;
 }

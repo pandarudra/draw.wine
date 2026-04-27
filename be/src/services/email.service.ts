@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 export interface EmailInviteData {
   emails: string[];
@@ -10,37 +10,31 @@ export interface EmailInviteData {
 }
 
 class EmailService {
-  private transporter: nodemailer.Transporter | null = null;
+  private resend: Resend | null = null;
   private isConfigured: boolean = false;
   private isDevelopment: boolean = true;
+  private fromEmail: string = "draw.wine <onboarding@resend.dev>";
 
   constructor() {
     this.isDevelopment = (process.env.NODE_ENV as string) !== "prod";
 
-    // Validate environment variables
-    const emailConfig = this.validateEmailConfig();
-    if (!emailConfig.isValid && !this.isDevelopment) {
+    const config = this.validateEmailConfig();
+    if (!config.isValid && !this.isDevelopment) {
       console.warn(
         "⚠️  Email service: Invalid configuration. Running in simulation mode."
       );
-      console.warn(`Missing: ${emailConfig.missing.join(", ")}`);
+      console.warn(`Missing: ${config.missing.join(", ")}`);
       this.isConfigured = false;
     } else {
-      this.initializeTransporter();
+      this.initializeClient();
     }
   }
 
   private validateEmailConfig(): { isValid: boolean; missing: string[] } {
     const missing: string[] = [];
 
-    if (!process.env.EMAIL) {
-      missing.push("EMAIL");
-    } else if (!this.isValidEmail(process.env.EMAIL)) {
-      missing.push("EMAIL (invalid format)");
-    }
-
-    if (!process.env.OTP_PASS) {
-      missing.push("OTP_PASS");
+    if (!process.env.RESEND_API_KEY) {
+      missing.push("RESEND_API_KEY");
     }
 
     return {
@@ -49,28 +43,25 @@ class EmailService {
     };
   }
 
-  private isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
-  private initializeTransporter(): void {
+  private initializeClient(): void {
     try {
-      this.transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        type: "OAuth2",
-        user: process.env.EMAIL,
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        refreshToken: process.env.GOOGLE_REFRESH_TOKEN!,
-      },
-    });
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) {
+        this.isConfigured = false;
+        return;
+      }
+
+      this.resend = new Resend(apiKey);
+
+      // Use custom from address if provided, otherwise default
+      if (process.env.RESEND_FROM_EMAIL) {
+        this.fromEmail = process.env.RESEND_FROM_EMAIL;
+      }
 
       this.isConfigured = true;
-      console.log("✅ Email service initialized with SMTP transporter");
+      console.log("✅ Email service initialized with Resend");
     } catch (error) {
-      console.error("❌ Failed to initialize email transporter:", error);
+      console.error("❌ Failed to initialize Resend client:", error);
       this.isConfigured = false;
     }
   }
@@ -91,7 +82,6 @@ class EmailService {
       }
       console.log("======================================\n");
 
-      // Simulate sending to each email with detailed logging
       for (const email of emails) {
         console.log(
           `✅ Simulated email sent to ${email}: message-id-${Date.now()}-${Math.random()
@@ -107,37 +97,42 @@ class EmailService {
       return;
     }
 
-    // Send actual emails in production
-
+    // Send actual emails in production via Resend
     try {
-      if (!this.transporter) {
-        throw new Error("Email transporter not initialized");
+      if (!this.resend) {
+        throw new Error("Resend client not initialized");
       }
 
-      const emailPromises = emails.map(async (email) => {
-        const info = await this.transporter!.sendMail({
-          from: process.env.EMAIL as string,
-          to: email,
-          subject: `${senderName} invited you to collaborate on "${roomName}"`,
-          html: this.generateEmailTemplate(
-            senderName,
-            message,
-            roomName,
-            inviteLink
-          ),
-          text: this.generatePlainTextEmail(
-            senderName,
-            message,
-            roomName,
-            inviteLink
-          ),
-        });
-        console.log(`✅ Email sent to ${email}:`, info);
-        return info;
-      });
+      const subject = `${senderName} invited you to collaborate on "${roomName}"`;
+      const html = this.generateEmailTemplate(
+        senderName,
+        message,
+        roomName,
+        inviteLink
+      );
+      const text = this.generatePlainTextEmail(
+        senderName,
+        message,
+        roomName,
+        inviteLink
+      );
 
-      await Promise.all(emailPromises);
-      console.log(`✅ Successfully sent ${emails.length} invitation emails`);
+      // Use Resend batch send for multiple recipients
+      const { data, error } = await this.resend.batch.send(
+        emails.map((email) => ({
+          from: this.fromEmail,
+          to: email,
+          subject,
+          html,
+          text,
+        }))
+      );
+
+      if (error) {
+        throw new Error(`Resend API error: ${error.message}`);
+      }
+
+      console.log(`✅ Successfully sent ${emails.length} invitation emails via Resend`, data);
     } catch (error) {
       console.error("❌ Error sending emails:", error);
       throw new Error(
@@ -292,7 +287,7 @@ class EmailService {
           </p>
 
           <div class="link-fallback">
-            <p>If the button doesn’t work, copy and paste this link into your browser:</p>
+            <p>If the button doesn't work, copy and paste this link into your browser:</p>
             <div>${inviteLink}</div>
           </div>
         </div>
@@ -326,30 +321,32 @@ You'll be able to sketch and collaborate together in real-time.
 
 —
 Sent via draw.wine — the collaborative drawing platform.
-If you didn’t expect this invitation, you can safely ignore this email.
+If you didn't expect this invitation, you can safely ignore this email.
   `.trim();
   }
 
-  // Method to test email configuration
   async testConnection(): Promise<boolean> {
     try {
-      // In development mode, just check if configuration is valid
       if (this.isDevelopment) {
         console.log("📧 Email service test: OK (development mode)");
         return true;
       }
 
-      // In production, verify the actual SMTP connection
-      if (!this.transporter || !this.isConfigured) {
+      if (!this.resend || !this.isConfigured) {
         console.error(
-          "📧 Email service test: FAILED - Transporter not configured"
+          "📧 Email service test: FAILED - Resend client not configured"
         );
         return false;
       }
 
-      // Verify the transporter connection
-      await this.transporter.verify();
-      console.log("📧 Email service test: OK (SMTP connection verified)");
+      // Verify by listing domains (lightweight API call)
+      const { error } = await this.resend.domains.list();
+      if (error) {
+        console.error("📧 Email service test: FAILED -", error.message);
+        return false;
+      }
+
+      console.log("📧 Email service test: OK (Resend API verified)");
       return true;
     } catch (error) {
       console.error("📧 Email service connection failed:", error);
@@ -357,18 +354,17 @@ If you didn’t expect this invitation, you can safely ignore this email.
     }
   }
 
-  // Method to get configuration status for debugging
   getConfigurationStatus(): {
     isConfigured: boolean;
     isDevelopment: boolean;
-    hasValidTransporter: boolean;
-    emailConfigured: boolean;
+    hasValidClient: boolean;
+    apiKeyConfigured: boolean;
   } {
     return {
       isConfigured: this.isConfigured,
       isDevelopment: this.isDevelopment,
-      hasValidTransporter: this.transporter !== null,
-      emailConfigured: !!process.env.EMAIL && !!process.env.OTP_PASS,
+      hasValidClient: this.resend !== null,
+      apiKeyConfigured: !!process.env.RESEND_API_KEY,
     };
   }
 }

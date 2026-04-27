@@ -12,6 +12,7 @@ import type { Position, Element } from "@/types";
 import { useLaserTrail } from "./LaserTrail";
 import { eraseElements, getResizeHandles } from "@/utils/canvas";
 import { ImageLoader } from "@/utils/imageLoader";
+import { useTheme } from "@/contexts/ThemeContext";
 import { isElementInViewport } from "@/utils/viewport";
 import {
   loadFromLocalStorage,
@@ -74,7 +75,7 @@ const ConnectionStatus = ({
   isConnected: boolean;
   collaborators: any[];
 }) => (
-  <div className="absolute top-4 right-4 z-50 bg-white rounded-lg shadow-lg p-3 max-w-xs">
+  <div className="absolute top-16 right-4 z-50 bg-background rounded-lg shadow-lg p-3 max-w-xs border">
     <div className="flex items-center space-x-2 mb-2">
       <div
         className={`w-3 h-3 rounded-full ${
@@ -120,6 +121,7 @@ export const CanvasBoard = () => {
   // Get collaboration state
   const { state, sendOperation, updateCursor, updateDrawingStatus } =
     useCollab();
+  const { theme } = useTheme();
 
   // Local state for non-collaborative mode
   const [localElements, setLocalElements] = useState<Element[]>([]);
@@ -316,7 +318,7 @@ export const CanvasBoard = () => {
 
       // Handle collaborative laser events
       const handleLaserPoint = (event: CustomEvent) => {
-        const { userId, point, timestamp } = event.detail;
+        const { userId, point, timestamp, color } = event.detail;
         setCollaborativeLaserTrails((prev) => {
           const newTrails = new Map(prev);
           const userTrail = newTrails.get(userId) || [];
@@ -326,7 +328,7 @@ export const CanvasBoard = () => {
             point,
             opacity: 1,
             timestamp,
-            color: "#ff0000", // Red for other users
+            color: color || "#00ff00", // Green fallback for other users
           };
 
           // Keep recent points (last 2 seconds)
@@ -449,10 +451,21 @@ export const CanvasBoard = () => {
     // Create rough canvas
     const rc = rough.canvas(canvas);
 
+    const isDark =
+      theme === "dark" ||
+      (theme === "system" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+    const getStrokeColor = (color: string) => {
+      if (isDark && (color === "#000000" || color === "#000")) return "#ffffff";
+      if (!isDark && (color === "#ffffff" || color === "#fff")) return "#000000";
+      return color;
+    };
+
     // Draw elements
     elements.forEach((element) => {
       const options = {
-        stroke: element.strokeColor,
+        stroke: getStrokeColor(element.strokeColor),
         strokeWidth: element.strokeWidth,
         roughness: element.roughness || 1,
         seed: element.seed || 1,
@@ -546,7 +559,7 @@ export const CanvasBoard = () => {
         case "Pencil": {
           if (element.points && element.points.length > 0) {
             ctx.save();
-            ctx.strokeStyle = element.strokeColor;
+            ctx.strokeStyle = getStrokeColor(element.strokeColor);
             ctx.lineWidth = element.strokeWidth;
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
@@ -634,7 +647,7 @@ export const CanvasBoard = () => {
             ctx.font = `${element.fontSize || 20}px ${
               element.fontFamily || "Virgil"
             }`;
-            ctx.fillStyle = element.strokeColor || "#000";
+            ctx.fillStyle = getStrokeColor(element.strokeColor || "#000");
             ctx.textBaseline = "top";
             ctx.fillText(element.text, element.x, element.y);
           }
@@ -834,7 +847,8 @@ export const CanvasBoard = () => {
 
     // Draw current user's laser trail
     if (selectedTool === "Laser" && laser.trail.length > 0) {
-      drawLaserTrail(laser.trail, "#ff0000", 1.0);
+      const trailColor = laser.trail[laser.trail.length - 1].color || "#ff0000";
+      drawLaserTrail(laser.trail, trailColor, 1.0);
 
       // Draw current laser point
       ctx.save();
@@ -848,8 +862,9 @@ export const CanvasBoard = () => {
         lastPoint.y,
         5
       );
-      gradient.addColorStop(0, "rgba(255, 0, 0, 1)");
-      gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+      gradient.addColorStop(0, trailColor);
+      const transparentColor = trailColor.length === 7 ? trailColor + "00" : "rgba(255,0,0,0)";
+      gradient.addColorStop(1, transparentColor);
 
       ctx.fillStyle = gradient;
       ctx.beginPath();
@@ -861,7 +876,8 @@ export const CanvasBoard = () => {
     // Draw collaborative laser trails from other users
     collaborativeLaserTrails.forEach((trail) => {
       if (trail.length > 0) {
-        drawLaserTrail(trail, "#00ff00", 0.8); // Green for other users
+        const trailColor = trail[trail.length - 1].color || "#00ff00";
+        drawLaserTrail(trail, trailColor, 0.8); 
 
         // Draw their current laser point
         ctx.save();
@@ -875,8 +891,9 @@ export const CanvasBoard = () => {
           lastPoint.y,
           5
         );
-        gradient.addColorStop(0, "rgba(0, 255, 0, 1)");
-        gradient.addColorStop(1, "rgba(0, 255, 0, 0)");
+        gradient.addColorStop(0, trailColor);
+        const transparentColor = trailColor.length === 7 ? trailColor + "00" : "rgba(0,255,0,0)";
+        gradient.addColorStop(1, transparentColor);
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
@@ -899,7 +916,12 @@ export const CanvasBoard = () => {
     selectionArea,
     isCollaborating,
     state.userId,
+    theme,
   ]);
+
+  useEffect(() => {
+    redrawCanvas();
+  }, [theme, redrawCanvas]);
 
   // Initialize canvas size
   // Handle delete key press
@@ -1515,8 +1537,17 @@ export const CanvasBoard = () => {
       // Laser tool: handle trail
       if (selectedTool === "Laser") {
         if (e.buttons === 1) {
+          // Calculate explicit color based on theme
+          const isDark = document.documentElement.classList.contains("dark");
+          const getStrokeColor = (color: string) => {
+            if (isDark && (color === "#000000" || color === "#000")) return "#ffffff";
+            if (!isDark && (color === "#ffffff" || color === "#fff")) return "#000000";
+            return color;
+          };
+          const laserColor = getStrokeColor(strokeColor);
+
           // Only add points when mouse button is pressed
-          laser.addPoint(point);
+          laser.addPoint(point, laserColor);
 
           // Send laser point to collaborators
           if (isCollaborating && updateCursor && state.roomId) {
@@ -1529,18 +1560,9 @@ export const CanvasBoard = () => {
                 point: point,
                 userId: state.userId,
                 timestamp: Date.now(),
+                color: laserColor,
               });
             }
-          }
-        } else {
-          laser.clearTrail();
-
-          // Send laser clear to collaborators
-          if (isCollaborating && state.socket && state.roomId) {
-            state.socket.emit("laser_clear", {
-              roomId: state.roomId,
-              userId: state.userId,
-            });
           }
         }
         return;
@@ -2068,6 +2090,7 @@ export const CanvasBoard = () => {
     setSelectionArea(null);
     // Switch back to select tool after drawing a shape (not for select, Text, Pencil or Eraser)
     if (
+      drawing &&
       selectedTool !== "select" &&
       selectedTool !== "Eraser" &&
       selectedTool !== "Pencil" &&
@@ -2075,7 +2098,18 @@ export const CanvasBoard = () => {
     ) {
       setSelectedTool("select");
     }
-  }, [selectedTool, setSelectedTool]);
+  }, [
+    drawing,
+    currentElement,
+    isCollaborating,
+    sendOperation,
+    state.roomId,
+    state.userId,
+    updateDrawingStatus,
+    setElements,
+    selectedTool,
+    setSelectedTool,
+  ]);
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -2270,7 +2304,7 @@ export const CanvasBoard = () => {
         <textarea
           data-text-editing="true"
           className="absolute z-50 resize-none border-2 border-blue-500 rounded-md px-2 py-1 
-                     bg-white shadow-lg outline-none text-black
+                     bg-background shadow-lg outline-none text-foreground
                      animate-in fade-in duration-150"
           style={{
             left: `${Math.max(0, selectedElement.x * scale + position.x)}px`,
@@ -2321,7 +2355,7 @@ export const CanvasBoard = () => {
               top: `${handle.y * scale + position.y - 6}px`,
               width: "12px",
               height: "12px",
-              background: "#fff",
+              background: "var(--background)",
               border: "2px solid #007acc",
               borderRadius: "3px",
               cursor: handle.cursor,
