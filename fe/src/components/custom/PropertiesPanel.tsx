@@ -1,4 +1,5 @@
 import { useDrawing } from "@/contexts/DrawingContext";
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { Minus } from "lucide-react";
 
@@ -22,17 +23,26 @@ const STROKE_WIDTHS = [
 ];
 
 export const PropertiesPanel = () => {
-  const { selectedTool, strokeColor, setStrokeColor, strokeWidth, setStrokeWidth } = useDrawing();
+  const {
+    selectedTool,
+    strokeColor,
+    setStrokeColor,
+    strokeWidth,
+    setStrokeWidth,
+  } = useDrawing();
 
   // Do not show the properties panel if the tool doesn't require stroke properties.
   // We can expand this list if more tools are added.
-  if (selectedTool === "select" || selectedTool === "Eraser" || selectedTool === "Image") {
+  if (
+    selectedTool === "select" ||
+    selectedTool === "Eraser" ||
+    selectedTool === "Image"
+  ) {
     return null;
   }
 
   return (
     <div className="bg-background/80 backdrop-blur-md border border-border p-4 rounded-xl shadow-lg w-56 flex flex-col space-y-6">
-      
       {/* Stroke Color Section */}
       <div className="space-y-3">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -44,12 +54,12 @@ export const PropertiesPanel = () => {
               key={color}
               onClick={() => setStrokeColor(color)}
               className={cn(
-                "w-8 h-8 rounded-md transition-all hover:scale-110",
-                strokeColor === color 
-                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background" 
-                  : "border border-border/50"
+                "w-8 h-8 rounded-md transition-all hover:scale-110 stroke-color-swatch",
+                strokeColor === color
+                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                  : "border border-border/50",
               )}
-              style={{ backgroundColor: color }}
+              style={{ "--stroke-color": color } as CSSProperties}
               title={color}
               aria-label={`Select color ${color}`}
             />
@@ -71,7 +81,7 @@ export const PropertiesPanel = () => {
                 "flex-1 flex items-center justify-center p-2 rounded-md transition-colors",
                 strokeWidth === width.value
                   ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:bg-muted"
+                  : "text-muted-foreground hover:bg-muted",
               )}
               title={`${width.value}px`}
               aria-label={`Select stroke width ${width.value}`}
@@ -81,7 +91,6 @@ export const PropertiesPanel = () => {
           ))}
         </div>
       </div>
-      
     </div>
   );
 };

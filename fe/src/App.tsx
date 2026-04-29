@@ -10,7 +10,7 @@ import { MobileScreenFallback } from "./components/custom/fallbacks/MobileScreen
 const Landing = lazy(() =>
   import("./pages/Landing").then((module) => ({
     default: module.Landing,
-  }))
+  })),
 );
 
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -18,7 +18,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 const PlayGround = lazy(() =>
   import("./pages/PlayGround").then((module) => ({
     default: module.PlayGround,
-  }))
+  })),
 );
 
 export const App = () => {
@@ -57,8 +57,8 @@ export const App = () => {
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="draw-wine-theme">
-      <BrowserRouter>
-        <CollabProvider>
+      <CollabProvider>
+        <BrowserRouter>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/" element={<Landing />} />
@@ -67,8 +67,8 @@ export const App = () => {
             </Routes>
           </Suspense>
           <Toaster />
-        </CollabProvider>
-      </BrowserRouter>
+        </BrowserRouter>
+      </CollabProvider>
     </ThemeProvider>
   );
 };

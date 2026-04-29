@@ -1,6 +1,20 @@
 import type { Element } from "@/types";
 import rough from "roughjs";
 
+type ElementBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+type ElementsBounds = ElementBounds & {
+  width: number;
+  height: number;
+};
+
+type RoughCanvas = ReturnType<typeof rough.canvas>;
+
 export type ExportFormat = "png" | "jpg" | "svg";
 
 export interface ExportOptions {
@@ -18,7 +32,7 @@ export const exportCanvasAsImage = (
   elements: Element[],
   position: { x: number; y: number },
   scale: number,
-  options: ExportOptions = { format: "png" }
+  options: ExportOptions = { format: "png" },
 ): void => {
   const canvas = canvasRef.current;
   if (!canvas) return;
@@ -90,7 +104,7 @@ export const exportCanvasAsImage = (
         }
       },
       mimeType,
-      quality
+      quality,
     );
   }
 };
@@ -149,7 +163,7 @@ export const loadCanvasFromJSON = (): Promise<Element[]> => {
           resolve(data.elements);
         } catch (error) {
           reject(
-            new Error("Failed to parse file: " + (error as Error).message)
+            new Error("Failed to parse file: " + (error as Error).message),
           );
         }
       };
@@ -165,7 +179,7 @@ export const loadCanvasFromJSON = (): Promise<Element[]> => {
 /**
  * Helper function to calculate bounds of all elements
  */
-const getElementsBounds = (elements: Element[]) => {
+const getElementsBounds = (elements: Element[]): ElementsBounds => {
   if (elements.length === 0) {
     return { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 };
   }
@@ -196,7 +210,7 @@ const getElementsBounds = (elements: Element[]) => {
 /**
  * Helper function to get bounds of a single element
  */
-const getElementBounds = (element: Element) => {
+const getElementBounds = (element: Element): ElementBounds => {
   let minX = element.x;
   let minY = element.y;
   let maxX = element.x;
@@ -232,8 +246,8 @@ const getElementBounds = (element: Element) => {
  */
 const drawElementForExport = (
   ctx: CanvasRenderingContext2D,
-  rc: any,
-  element: Element
+  rc: RoughCanvas,
+  element: Element,
 ) => {
   const options = {
     stroke: element.strokeColor,
@@ -250,7 +264,7 @@ const drawElementForExport = (
           element.y,
           element.width,
           element.height,
-          options
+          options,
         );
       }
       break;
@@ -274,7 +288,7 @@ const drawElementForExport = (
           element.y + element.height / 2,
           Math.abs(element.width),
           Math.abs(element.height),
-          options
+          options,
         );
       }
       break;
@@ -286,7 +300,7 @@ const drawElementForExport = (
           element.y,
           element.x + element.width,
           element.y + element.height,
-          options
+          options,
         );
       }
       break;
@@ -329,7 +343,7 @@ const drawElementForExport = (
             element.points[0].y,
             element.strokeWidth / 2,
             0,
-            2 * Math.PI
+            2 * Math.PI,
           );
           ctx.fill();
         } else if (element.points.length === 2) {
@@ -383,9 +397,9 @@ const drawElementForExport = (
  */
 const exportAsSVG = (
   elements: Element[],
-  bounds: any,
+  bounds: ElementsBounds,
   filename: string,
-  options: ExportOptions
+  options: ExportOptions,
 ) => {
   const padding = 50;
   const width = Math.max(bounds.width + padding * 2, 800);
@@ -417,7 +431,7 @@ const exportAsSVG = (
 const elementToSVG = (
   element: Element,
   offsetX: number,
-  offsetY: number
+  offsetY: number,
 ): string => {
   const x = element.x + offsetX;
   const y = element.y + offsetY;

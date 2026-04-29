@@ -4,17 +4,20 @@ import type { User, Room, DrawingOperation } from "../types";
 const rooms = new Map<string, Room>();
 
 // Cleanup inactive rooms every hour
-setInterval(() => {
-  const now = Date.now();
-  const ROOM_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
+setInterval(
+  () => {
+    const now = Date.now();
+    const ROOM_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
 
-  for (const [roomId, room] of rooms) {
-    if (now - room.lastActivity > ROOM_TIMEOUT || room.users.size === 0) {
-      rooms.delete(roomId);
-      console.log(`Cleaned up inactive room: ${roomId}`);
+    for (const [roomId, room] of rooms) {
+      if (now - room.lastActivity > ROOM_TIMEOUT || room.users.size === 0) {
+        rooms.delete(roomId);
+        console.log(`Cleaned up inactive room: ${roomId}`);
+      }
     }
-  }
-}, 60 * 60 * 1000);
+  },
+  60 * 60 * 1000,
+);
 
 export const ExecSocketEvents = (io: SocketServer) => {
   io.on("connection", (socket: Socket) => {
@@ -55,7 +58,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
             ) {
               room.users.delete(existingUserId);
               console.log(
-                `Removed existing user ${existingUserId} from room ${roomId}`
+                `Removed existing user ${existingUserId} from room ${roomId}`,
               );
             }
           }
@@ -93,7 +96,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
               color: u.color,
               cursor: u.cursor,
               isDrawing: u.isDrawing,
-            }))
+            })),
           );
 
           console.log(`Room ${roomId} now has ${room.users.size} users`);
@@ -101,7 +104,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
           console.error("Error joining room:", error);
           socket.emit("error", { message: "Failed to join room" });
         }
-      }
+      },
     );
 
     socket.on("drawing_operation", (data: any) => {
@@ -131,16 +134,18 @@ export const ExecSocketEvents = (io: SocketServer) => {
         }
 
         console.log(
-          `Room ${roomId} has ${room.elements.length} elements before operation`
+          `Room ${roomId} has ${room.elements.length} elements before operation`,
         );
 
         // Update room state based on operation
         switch (operation.type) {
+          case "element_create":
           case "element_start":
             // Add new element as temporary
-            if (operation.data.element) {
+            const startElement = operation.data?.element || operation.element;
+            if (startElement) {
               room.elements.push({
-                ...operation.data.element,
+                ...startElement,
                 isTemporary: true,
               });
             }
@@ -149,7 +154,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
           case "element_update":
             // Update element properties
             const updateIndex = room.elements.findIndex(
-              (el) => el.id === operation.elementId
+              (el) => el.id === operation.elementId,
             );
             if (updateIndex !== -1) {
               room.elements[updateIndex] = {
@@ -162,7 +167,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
           case "element_complete":
             // Mark element as completed
             const completeIndex = room.elements.findIndex(
-              (el) => el.id === operation.elementId
+              (el) => el.id === operation.elementId,
             );
             if (completeIndex !== -1) {
               room.elements[completeIndex] = {
@@ -176,7 +181,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
           case "element_delete":
             // Remove element
             room.elements = room.elements.filter(
-              (el) => el.id !== operation.elementId
+              (el) => el.id !== operation.elementId,
             );
             break;
         }
@@ -184,25 +189,28 @@ export const ExecSocketEvents = (io: SocketServer) => {
         room.lastActivity = Date.now();
 
         console.log(
-          `Room ${roomId} now has ${room.elements.length} elements after operation`
+          `Room ${roomId} now has ${room.elements.length} elements after operation`,
         );
 
         console.log("=== BACKEND: Broadcasting operation to room ===");
         console.log("Broadcasting to room:", roomId);
         console.log(
           "Operation being broadcast:",
-          JSON.stringify(operation, null, 2)
+          JSON.stringify(operation, null, 2),
         );
 
-        // Broadcast operation to other users in room
-        socket.to(roomId).emit("operation_applied", operation);
+        // Broadcast operation to all users in room including sender
+        io.to(roomId).emit("operation_applied", operation);
 
         // Update user's drawing status
         const user = room.users.get(operation.authorId);
         if (user) {
-          user.isDrawing = operation.type === "element_start";
+          user.isDrawing =
+            operation.type === "element_start" ||
+            operation.type === "element_create";
           user.currentElementId =
-            operation.type === "element_start"
+            operation.type === "element_start" ||
+            operation.type === "element_create"
               ? operation.elementId
               : undefined;
         }
@@ -235,14 +243,14 @@ export const ExecSocketEvents = (io: SocketServer) => {
           // Broadcast cursor update to other users
           socket.to(roomId).emit("cursor_moved", {
             userId: Array.from(room.users.values()).find(
-              (u) => u.socketId === socket.id
+              (u) => u.socketId === socket.id,
             )?.id,
             position,
           });
         } catch (error) {
           console.error("Error updating cursor:", error);
         }
-      }
+      },
     );
 
     // Handle laser tool events
@@ -263,8 +271,8 @@ export const ExecSocketEvents = (io: SocketServer) => {
           const room = rooms.get(roomId);
           if (!room) return;
 
-          // Broadcast laser point to other users in room
-          socket.to(roomId).emit("laser_point", {
+          // Broadcast laser point to all users in room including sender
+          io.to(roomId).emit("laser_point", {
             userId,
             point,
             timestamp,
@@ -272,7 +280,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
         } catch (error) {
           console.error("Error broadcasting laser point:", error);
         }
-      }
+      },
     );
 
     socket.on(
@@ -282,14 +290,14 @@ export const ExecSocketEvents = (io: SocketServer) => {
           const room = rooms.get(roomId);
           if (!room) return;
 
-          // Broadcast laser clear to other users in room
-          socket.to(roomId).emit("laser_clear", {
+          // Broadcast laser clear to all users in room including sender
+          io.to(roomId).emit("laser_clear", {
             userId,
           });
         } catch (error) {
           console.error("Error broadcasting laser clear:", error);
         }
-      }
+      },
     );
 
     socket.on(
@@ -323,7 +331,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
           });
 
           console.log(
-            `Room status check for user ${userId} in room ${roomId}: ${isInRoom}`
+            `Room status check for user ${userId} in room ${roomId}: ${isInRoom}`,
           );
         } catch (error) {
           console.error("Error checking room status:", error);
@@ -337,7 +345,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
             error: "Failed to check room status",
           });
         }
-      }
+      },
     );
 
     socket.on("leave_room", ({ roomId }: { roomId: string }) => {
@@ -360,7 +368,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
                 color: u.color,
                 cursor: u.cursor,
                 isDrawing: u.isDrawing,
-              }))
+              })),
             );
 
             // Send confirmation to the leaving user
@@ -399,7 +407,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
                   color: u.color,
                   cursor: u.cursor,
                   isDrawing: u.isDrawing,
-                }))
+                })),
               );
 
               console.log(`Removed disconnected user from room ${roomId}`);

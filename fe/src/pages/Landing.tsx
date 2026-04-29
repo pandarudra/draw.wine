@@ -9,6 +9,6 @@ export const Landing = () => {
     if (path) {
       navigate(path);
     }
-  }, []);
+  }, [navigate]);
   return <> </>;
 };

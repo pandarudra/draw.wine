@@ -20,6 +20,36 @@ import {
 } from "@/utils/StoreProgress";
 import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
 import { useCollab } from "@/contexts/CollabContext";
+import { cn } from "@/lib/utils";
+
+type Collaborator = {
+  id: string;
+  name: string;
+  color: string;
+  cursor: { x: number; y: number };
+  isDrawing?: boolean;
+};
+
+type CollaborativeOperationPayload =
+  | {
+      type: "element_create" | "element_start";
+      element?: Element;
+      data?: { element?: Element };
+    }
+  | {
+      type: "element_update";
+      elementId: string;
+      data: Partial<Element>;
+    }
+  | {
+      type: "element_complete";
+      elementId: string;
+      data?: { element?: Element };
+    }
+  | {
+      type: "element_delete";
+      elementId: string;
+    };
 
 // Cursor
 const CollabCursor = ({
@@ -27,16 +57,15 @@ const CollabCursor = ({
   position,
   scale,
 }: {
-  collaborator: any;
+  collaborator: Collaborator;
   position: Position;
   scale: number;
 }) => (
   <div
-    className="absolute pointer-events-none z-50"
+    className="absolute pointer-events-none z-50 -translate-x-0.5 -translate-y-0.5"
     style={{
       left: `${collaborator.cursor.x * scale + position.x}px`,
       top: `${collaborator.cursor.y * scale + position.y}px`,
-      transform: "translate(-2px, -2px)",
     }}
   >
     <div className="relative">
@@ -55,8 +84,8 @@ const CollabCursor = ({
       </svg>
 
       <div
-        className="absolute top-6 left-2 px-2 py-1 rounded text-white text-xs whitespace-nowrap shadow-lg"
-        style={{ backgroundColor: collaborator.color }}
+        className="absolute top-6 left-2 px-2 py-1 rounded text-white text-xs whitespace-nowrap shadow-lg collab-cursor-label"
+        style={{ "--collab-color": collaborator.color } as React.CSSProperties}
       >
         {collaborator.name}
         {collaborator.isDrawing && (
@@ -73,12 +102,12 @@ const ConnectionStatus = ({
   collaborators,
 }: {
   isConnected: boolean;
-  collaborators: any[];
+  collaborators: Collaborator[];
 }) => (
   <div className="absolute top-16 right-4 z-50 bg-background rounded-lg shadow-lg p-3 max-w-xs border">
-    <div className="flex items-center space-x-2 mb-2">
+    <div className="flex items-center space-x-2 mb-2 ">
       <div
-        className={`w-3 h-3 rounded-full ${
+        className={`w-3 h-3 rounded-full flex flex-col ${
           isConnected ? "bg-green-500" : "bg-red-500"
         }`}
       />
@@ -96,8 +125,12 @@ const ConnectionStatus = ({
           {collaborators.map((collaborator) => (
             <div key={collaborator.id} className="flex items-center space-x-2">
               <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: collaborator.color }}
+                className="w-3 h-3 rounded-full collab-user-dot"
+                style={
+                  {
+                    "--collab-color": collaborator.color,
+                  } as React.CSSProperties
+                }
               />
               <span className="text-sm truncate">{collaborator.name}</span>
               {collaborator.isDrawing && (
@@ -126,7 +159,7 @@ export const CanvasBoard = () => {
   // Local state for non-collaborative mode
   const [localElements, setLocalElements] = useState<Element[]>([]);
   const [collaborativeElements, setCollaborativeElements] = useState<Element[]>(
-    []
+    [],
   );
 
   // Debug collaborative elements
@@ -139,7 +172,7 @@ export const CanvasBoard = () => {
         id: el.id,
         type: el.type,
         isTemporary: el.isTemporary,
-      }))
+      })),
     );
   }, [collaborativeElements]);
   const [drawing, setDrawing] = useState(false);
@@ -177,7 +210,7 @@ export const CanvasBoard = () => {
       isCollaborating
         ? [...localElements, ...collaborativeElements]
         : localElements,
-    [isCollaborating, localElements, collaborativeElements]
+    [isCollaborating, localElements, collaborativeElements],
   );
 
   const setElements = isCollaborating
@@ -197,6 +230,62 @@ export const CanvasBoard = () => {
     >
   >(new Map());
 
+  const applyCollaborativeOperation = useCallback(
+    (operation: CollaborativeOperationPayload) => {
+      if (!operation || !operation.type) {
+        return;
+      }
+
+      switch (operation.type) {
+        case "element_create":
+        case "element_start": {
+          const element = operation.data?.element || operation.element;
+          if (element) {
+            setCollaborativeElements((prev) => {
+              const exists = prev.find((el) => el.id === element.id);
+              if (exists) {
+                return prev;
+              }
+              return [...prev, { ...element, isTemporary: true }];
+            });
+          }
+          break;
+        }
+
+        case "element_update": {
+          setCollaborativeElements((prev) =>
+            prev.map((el) =>
+              el.id === operation.elementId ? { ...el, ...operation.data } : el,
+            ),
+          );
+          break;
+        }
+
+        case "element_complete": {
+          const completeElement = operation.data?.element;
+          if (completeElement) {
+            setCollaborativeElements((prev) =>
+              prev.map((el) =>
+                el.id === operation.elementId
+                  ? { ...el, ...completeElement, isTemporary: false }
+                  : el,
+              ),
+            );
+          }
+          break;
+        }
+
+        case "element_delete": {
+          setCollaborativeElements((prev) =>
+            prev.filter((el) => el.id !== operation.elementId),
+          );
+          break;
+        }
+      }
+    },
+    [],
+  );
+
   // Debug logging for elements
   useEffect(() => {
     if (isCollaborating) {
@@ -204,7 +293,7 @@ export const CanvasBoard = () => {
       console.log("Local elements count:", localElements.length);
       console.log(
         "Collaborative elements count:",
-        collaborativeElements.length
+        collaborativeElements.length,
       );
       console.log("Total elements count:", elements.length);
       console.log("Collaborative elements:", collaborativeElements);
@@ -219,8 +308,13 @@ export const CanvasBoard = () => {
 
   // Listen for collaborative operations
   useEffect(() => {
-    const handleCollabOperation = (event: CustomEvent) => {
+    const handleCollabOperation = (
+      event: CustomEvent<CollaborativeOperationPayload>,
+    ) => {
       const operation = event.detail; // Operation should now be directly here
+      if (operation.authorId && operation.authorId === state.userId) {
+        return;
+      }
       console.log("CanvasBoard: Received collaborative operation", operation);
 
       if (!operation || !operation.type) {
@@ -228,76 +322,25 @@ export const CanvasBoard = () => {
         return;
       }
 
-      // Only process operations from other users
-      if (operation.authorId === state.userId) {
-        console.log("Ignoring operation from self");
-        return;
-      }
-
       console.log("Processing operation type:", operation.type);
-      switch (operation.type) {
-        case "element_start":
-        case "element_add": {
-          console.log("Processing element_start operation", operation);
-          const element = operation.data?.element;
-          if (element) {
-            console.log("Adding collaborative element:", element);
-            setCollaborativeElements((prev) => {
-              const exists = prev.find((el) => el.id === element.id);
-              if (exists) {
-                console.log("Element already exists, skipping");
-                return prev;
-              }
-              console.log("Adding new collaborative element", element);
-              const newElements = [...prev, { ...element, isTemporary: true }];
-              console.log("Collaborative elements count:", newElements.length);
-              return newElements;
-            });
-          } else {
-            console.warn("No element data in operation", operation);
-          }
-          break;
-        }
-
-        case "element_update": {
-          console.log("Processing element_update operation", operation);
-          setCollaborativeElements((prev) =>
-            prev.map((el) =>
-              el.id === operation.elementId ? { ...el, ...operation.data } : el
-            )
-          );
-          break;
-        }
-
-        case "element_complete": {
-          console.log("Processing element_complete operation", operation);
-          const completeElement = operation.data?.element;
-          if (completeElement) {
-            setCollaborativeElements((prev) =>
-              prev.map((el) =>
-                el.id === operation.elementId
-                  ? { ...el, ...completeElement, isTemporary: false }
-                  : el
-              )
-            );
-          }
-          break;
-        }
-
-        case "element_delete": {
-          console.log("Processing element_delete operation", operation);
-          setCollaborativeElements((prev) =>
-            prev.filter((el) => el.id !== operation.elementId)
-          );
-          break;
-        }
-
-        default:
-          console.log("Unknown operation type:", operation.type);
+      if (operation.type === "element_start") {
+        console.log("Processing element_start operation", operation);
+      } else if (operation.type === "element_create") {
+        console.log("Processing element_create operation", operation);
+      } else if (operation.type === "element_update") {
+        console.log("Processing element_update operation", operation);
+      } else if (operation.type === "element_complete") {
+        console.log("Processing element_complete operation", operation);
+      } else if (operation.type === "element_delete") {
+        console.log("Processing element_delete operation", operation);
+      } else {
+        console.log("Unknown operation type:", operation.type);
       }
+
+      applyCollaborativeOperation(operation);
     };
 
-    const handleRoomJoined = (event: CustomEvent) => {
+    const handleRoomJoined = (event: CustomEvent<{ elements?: Element[] }>) => {
       console.log("CanvasBoard: Room joined event received", event.detail);
       const { elements } = event.detail;
       console.log("Elements from room:", elements);
@@ -312,12 +355,19 @@ export const CanvasBoard = () => {
     if (isCollaborating) {
       window.addEventListener(
         "collab_operation",
-        handleCollabOperation as EventListener
+        handleCollabOperation as EventListener,
       );
       window.addEventListener("room_joined", handleRoomJoined as EventListener);
 
       // Handle collaborative laser events
-      const handleLaserPoint = (event: CustomEvent) => {
+      const handleLaserPoint = (
+        event: CustomEvent<{
+          userId: string;
+          point: { x: number; y: number };
+          timestamp: number;
+          color?: string;
+        }>,
+      ) => {
         const { userId, point, timestamp, color } = event.detail;
         setCollaborativeLaserTrails((prev) => {
           const newTrails = new Map(prev);
@@ -333,7 +383,7 @@ export const CanvasBoard = () => {
 
           // Keep recent points (last 2 seconds)
           const recentPoints = userTrail.filter(
-            (p) => timestamp - p.timestamp < 2000
+            (p) => timestamp - p.timestamp < 2000,
           );
           newTrails.set(userId, [...recentPoints, newPoint]);
 
@@ -341,7 +391,7 @@ export const CanvasBoard = () => {
         });
       };
 
-      const handleLaserClear = (event: CustomEvent) => {
+      const handleLaserClear = (event: CustomEvent<{ userId: string }>) => {
         const { userId } = event.detail;
         setCollaborativeLaserTrails((prev) => {
           const newTrails = new Map(prev);
@@ -352,33 +402,33 @@ export const CanvasBoard = () => {
 
       window.addEventListener(
         "collab_laser_point",
-        handleLaserPoint as EventListener
+        handleLaserPoint as EventListener,
       );
       window.addEventListener(
         "collab_laser_clear",
-        handleLaserClear as EventListener
+        handleLaserClear as EventListener,
       );
 
       return () => {
         window.removeEventListener(
           "collab_operation",
-          handleCollabOperation as EventListener
+          handleCollabOperation as EventListener,
         );
         window.removeEventListener(
           "room_joined",
-          handleRoomJoined as EventListener
+          handleRoomJoined as EventListener,
         );
         window.removeEventListener(
           "collab_laser_point",
-          handleLaserPoint as EventListener
+          handleLaserPoint as EventListener,
         );
         window.removeEventListener(
           "collab_laser_clear",
-          handleLaserClear as EventListener
+          handleLaserClear as EventListener,
         );
       };
     }
-  }, [isCollaborating, state.userId]);
+  }, [applyCollaborativeOperation, isCollaborating]);
 
   // Save in local storage and load from that
   useEffect(() => {
@@ -420,12 +470,12 @@ export const CanvasBoard = () => {
 
     window.addEventListener(
       "canvas-elements-updated",
-      handleCanvasElementsUpdate
+      handleCanvasElementsUpdate,
     );
     return () => {
       window.removeEventListener(
         "canvas-elements-updated",
-        handleCanvasElementsUpdate
+        handleCanvasElementsUpdate,
       );
     };
   }, [isCollaborating]);
@@ -458,7 +508,8 @@ export const CanvasBoard = () => {
 
     const getStrokeColor = (color: string) => {
       if (isDark && (color === "#000000" || color === "#000")) return "#ffffff";
-      if (!isDark && (color === "#ffffff" || color === "#fff")) return "#000000";
+      if (!isDark && (color === "#ffffff" || color === "#fff"))
+        return "#000000";
       return color;
     };
 
@@ -490,7 +541,7 @@ export const CanvasBoard = () => {
               canvas.width / window.devicePixelRatio,
               canvas.height / window.devicePixelRatio,
               position,
-              scale
+              scale,
             );
 
             if (isVisible) {
@@ -502,7 +553,7 @@ export const CanvasBoard = () => {
                   element.x,
                   element.y,
                   element.width!,
-                  element.height!
+                  element.height!,
                 );
               } else {
                 // Load the image if not in cache
@@ -526,7 +577,7 @@ export const CanvasBoard = () => {
               element.y,
               element.width,
               element.height,
-              options
+              options,
             );
           }
           break;
@@ -551,7 +602,7 @@ export const CanvasBoard = () => {
               element.y,
               element.x + element.width,
               element.y + element.height,
-              options
+              options,
             );
           }
           break;
@@ -573,7 +624,7 @@ export const CanvasBoard = () => {
                 element.points[0].y,
                 element.strokeWidth / 2,
                 0,
-                2 * Math.PI
+                2 * Math.PI,
               );
               ctx.fill();
             } else if (element.points.length === 2) {
@@ -614,7 +665,7 @@ export const CanvasBoard = () => {
               element.y + element.height / 2,
               Math.abs(element.width),
               Math.abs(element.height),
-              options
+              options,
             );
           }
           break;
@@ -676,7 +727,7 @@ export const CanvasBoard = () => {
         selectionArea.start.x,
         selectionArea.start.y,
         width,
-        height
+        height,
       );
       ctx.restore();
     }
@@ -704,7 +755,7 @@ export const CanvasBoard = () => {
                 minX - padding,
                 minY - padding,
                 maxX - minX + padding * 2,
-                maxY - minY + padding * 2
+                maxY - minY + padding * 2,
               );
             }
             break;
@@ -722,7 +773,7 @@ export const CanvasBoard = () => {
                 minX - padding,
                 minY - padding,
                 maxX - minX + padding * 2,
-                maxY - minY + padding * 2
+                maxY - minY + padding * 2,
               );
             }
             break;
@@ -740,7 +791,7 @@ export const CanvasBoard = () => {
                 element.x - padding,
                 element.y - padding,
                 textWidth + padding * 2,
-                textHeight + padding * 2
+                textHeight + padding * 2,
               );
             }
             break;
@@ -757,7 +808,7 @@ export const CanvasBoard = () => {
                 minX - padding,
                 minY - padding,
                 maxX - minX + padding * 2,
-                maxY - minY + padding * 2
+                maxY - minY + padding * 2,
               );
             }
             break;
@@ -770,7 +821,7 @@ export const CanvasBoard = () => {
     const drawLaserTrail = (
       trail: Array<{ point: { x: number; y: number }; opacity?: number }>,
       color: string,
-      opacity: number
+      opacity: number,
     ) => {
       if (trail.length < 2) return;
 
@@ -813,7 +864,7 @@ export const CanvasBoard = () => {
             secondLastPoint.x,
             secondLastPoint.y,
             lastPoint.x,
-            lastPoint.y
+            lastPoint.y,
           );
         }
       };
@@ -860,10 +911,11 @@ export const CanvasBoard = () => {
         0,
         lastPoint.x,
         lastPoint.y,
-        5
+        5,
       );
       gradient.addColorStop(0, trailColor);
-      const transparentColor = trailColor.length === 7 ? trailColor + "00" : "rgba(255,0,0,0)";
+      const transparentColor =
+        trailColor.length === 7 ? trailColor + "00" : "rgba(255,0,0,0)";
       gradient.addColorStop(1, transparentColor);
 
       ctx.fillStyle = gradient;
@@ -877,7 +929,7 @@ export const CanvasBoard = () => {
     collaborativeLaserTrails.forEach((trail) => {
       if (trail.length > 0) {
         const trailColor = trail[trail.length - 1].color || "#00ff00";
-        drawLaserTrail(trail, trailColor, 0.8); 
+        drawLaserTrail(trail, trailColor, 0.8);
 
         // Draw their current laser point
         ctx.save();
@@ -889,10 +941,11 @@ export const CanvasBoard = () => {
           0,
           lastPoint.x,
           lastPoint.y,
-          5
+          5,
         );
         gradient.addColorStop(0, trailColor);
-        const transparentColor = trailColor.length === 7 ? trailColor + "00" : "rgba(0,255,0,0)";
+        const transparentColor =
+          trailColor.length === 7 ? trailColor + "00" : "rgba(0,255,0,0)";
         gradient.addColorStop(1, transparentColor);
 
         ctx.fillStyle = gradient;
@@ -905,10 +958,10 @@ export const CanvasBoard = () => {
 
     ctx.restore();
   }, [
+    collaborativeLaserTrails,
     elements,
     position,
     scale,
-    selectedElement,
     selectedElements,
     editingTextId,
     selectedTool,
@@ -934,7 +987,7 @@ export const CanvasBoard = () => {
       ) {
         e.preventDefault();
         setElements((prev) =>
-          prev.filter((el) => el.id !== selectedElement.id)
+          prev.filter((el) => el.id !== selectedElement.id),
         );
         setSelectedElement(null);
       }
@@ -942,7 +995,7 @@ export const CanvasBoard = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedElement, isEditingText]);
+  }, [selectedElement, isEditingText, setElements]);
 
   // Handle tool shortcuts
   useEffect(() => {
@@ -1004,7 +1057,7 @@ export const CanvasBoard = () => {
               !selectedElements.some((selected) => selected.id === el.id) &&
               (!selectedElement || el.id !== selectedElement.id)
             );
-          })
+          }),
         );
         setSelectedElements([]);
         setSelectedElement(null);
@@ -1013,7 +1066,7 @@ export const CanvasBoard = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedElement, selectedElements, isEditingText]);
+  }, [selectedElement, selectedElements, isEditingText, setElements]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1100,7 +1153,7 @@ export const CanvasBoard = () => {
         y: (e.clientY - rect.top - position.y) / scale,
       };
     },
-    [position, scale]
+    [position, scale],
   );
 
   const startTextEditing = useCallback((element: Element) => {
@@ -1111,7 +1164,7 @@ export const CanvasBoard = () => {
     // Add a small delay to ensure the textarea gets focus
     setTimeout(() => {
       const textarea = document.querySelector(
-        'textarea[data-text-editing="true"]'
+        'textarea[data-text-editing="true"]',
       ) as HTMLTextAreaElement;
       if (textarea) {
         textarea.focus();
@@ -1134,8 +1187,8 @@ export const CanvasBoard = () => {
 
             setElements((prev) =>
               prev.map((el) =>
-                el.id === editingTextId ? completedElement : el
-              )
+                el.id === editingTextId ? completedElement : el,
+              ),
             );
 
             // Send collaboration update for text completion
@@ -1175,9 +1228,10 @@ export const CanvasBoard = () => {
       elements,
       isCollaborating,
       sendOperation,
+      setElements,
       state.roomId,
       state.userId,
-    ]
+    ],
   );
 
   // Handle clicking outside text input to finish editing
@@ -1185,7 +1239,7 @@ export const CanvasBoard = () => {
     const handleClickOutside = (e: MouseEvent) => {
       if (isEditingText) {
         const textarea = document.querySelector(
-          'textarea[data-text-editing="true"]'
+          'textarea[data-text-editing="true"]',
         ) as HTMLTextAreaElement;
         if (textarea && !textarea.contains(e.target as Node)) {
           finishTextEditing(textarea.value);
@@ -1302,7 +1356,7 @@ export const CanvasBoard = () => {
 
               for (const p of element.points) {
                 const distance = Math.sqrt(
-                  Math.pow(point.x - p.x, 2) + Math.pow(point.y - p.y, 2)
+                  Math.pow(point.x - p.x, 2) + Math.pow(point.y - p.y, 2),
                 );
                 if (distance <= tolerance) {
                   return element;
@@ -1315,7 +1369,7 @@ export const CanvasBoard = () => {
       }
       return null;
     },
-    [elements]
+    [elements],
   );
 
   const handleMouseDown = useCallback(
@@ -1430,7 +1484,7 @@ export const CanvasBoard = () => {
       // will handle its collab later
       if (selectedTool === "Image") {
         const input = document.getElementById(
-          "imageUpload"
+          "imageUpload",
         ) as HTMLInputElement;
         input?.click();
         return;
@@ -1445,14 +1499,14 @@ export const CanvasBoard = () => {
 
         if (isCollaborating && sendOperation && state.roomId) {
           const erasedElements = elements.filter(
-            (el) => !newElements.includes(el)
+            (el) => !newElements.includes(el),
           );
           erasedElements.forEach((el) => {
             sendOperation({
               type: "element_delete",
-              roomId: state.roomId,
+              roomId: state.roomId ?? undefined,
               elementId: el.id,
-              authorId: state.userId!,
+              authorId: state.userId ?? undefined,
               data: {},
             });
           });
@@ -1496,7 +1550,6 @@ export const CanvasBoard = () => {
     [
       isEditingText,
       getTransformedPoint,
-      updateCursor,
       isCollaborating,
       position,
       selectedTool,
@@ -1513,7 +1566,7 @@ export const CanvasBoard = () => {
       startTextEditing,
       setSelectedElement,
       selectedElement,
-    ]
+    ],
   );
 
   const handleMouseMove = useCallback(
@@ -1540,8 +1593,10 @@ export const CanvasBoard = () => {
           // Calculate explicit color based on theme
           const isDark = document.documentElement.classList.contains("dark");
           const getStrokeColor = (color: string) => {
-            if (isDark && (color === "#000000" || color === "#000")) return "#ffffff";
-            if (!isDark && (color === "#ffffff" || color === "#fff")) return "#000000";
+            if (isDark && (color === "#000000" || color === "#000"))
+              return "#ffffff";
+            if (!isDark && (color === "#ffffff" || color === "#fff"))
+              return "#000000";
             return color;
           };
           const laserColor = getStrokeColor(strokeColor);
@@ -1577,7 +1632,7 @@ export const CanvasBoard = () => {
 
           if (isCollaborating && sendOperation && state.roomId) {
             const erasedElements = elements.filter(
-              (el) => !newElements.includes(el)
+              (el) => !newElements.includes(el),
             );
             erasedElements.forEach((el) => {
               sendOperation({
@@ -1755,7 +1810,7 @@ export const CanvasBoard = () => {
 
         // Update selected element reference
         setSelectedElement((prev) =>
-          prev ? { ...prev, x: newX, y: newY } : null
+          prev ? { ...prev, x: newX, y: newY } : null,
         );
         return;
       }
@@ -2001,7 +2056,7 @@ export const CanvasBoard = () => {
             const distance = lastPoint
               ? Math.sqrt(
                   Math.pow(point.x - lastPoint.x, 2) +
-                    Math.pow(point.y - lastPoint.y, 2)
+                    Math.pow(point.y - lastPoint.y, 2),
                 )
               : 0;
 
@@ -2036,9 +2091,11 @@ export const CanvasBoard = () => {
       getTransformedPoint,
       isCollaborating,
       updateCursor,
+      drawing,
       isPanning,
       startPan,
       selectedTool,
+      strokeColor,
       laser,
       elements,
       currentElement,
@@ -2046,14 +2103,16 @@ export const CanvasBoard = () => {
       dragOffset,
       resizing,
       resizeStart,
+      selectedElement,
       selectionArea,
       selectedElements,
       sendOperation,
       state.roomId,
+      state.socket,
       state.userId,
       setElements,
       setSelectedElement,
-    ]
+    ],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -2064,18 +2123,27 @@ export const CanvasBoard = () => {
       sendOperation &&
       state.roomId
     ) {
-      // Complete the element
-      const completedElement = { ...currentElement, isTemporary: false };
-      setElements((prev) =>
-        prev.map((el) => (el.id === currentElement.id ? completedElement : el))
-      );
+      // Read the latest element state from the array — currentElement is a stale
+      // snapshot from mouseDown and doesn't have the dimensions/points added
+      // during mouseMove.
+      setElements((prev) => {
+        const latestElement = prev.find((el) => el.id === currentElement.id);
+        const completedElement = {
+          ...(latestElement || currentElement),
+          isTemporary: false,
+        };
 
-      sendOperation({
-        type: "element_complete",
-        roomId: state.roomId!,
-        elementId: currentElement.id,
-        authorId: state.userId!,
-        data: { element: completedElement },
+        sendOperation({
+          type: "element_complete",
+          roomId: state.roomId!,
+          elementId: currentElement.id,
+          authorId: state.userId!,
+          data: { element: completedElement },
+        });
+
+        return prev.map((el) =>
+          el.id === currentElement.id ? completedElement : el,
+        );
       });
 
       updateDrawingStatus(false);
@@ -2131,7 +2199,7 @@ export const CanvasBoard = () => {
       getElementAtPoint,
       startTextEditing,
       setSelectedTool,
-    ]
+    ],
   );
 
   // Handle image upload
@@ -2198,8 +2266,8 @@ export const CanvasBoard = () => {
               sendOperation({
                 type: "element_create",
                 element: newElement,
-                roomId: state.roomId,
-                userId: state.userId,
+                roomId: state.roomId ?? undefined,
+                userId: state.userId ?? undefined,
               });
             }
           };
@@ -2217,9 +2285,10 @@ export const CanvasBoard = () => {
       canvasRef,
       isCollaborating,
       sendOperation,
+      setElements,
       state.roomId,
       state.userId,
-    ]
+    ],
   );
 
   // Reset state when session ends
@@ -2244,21 +2313,21 @@ export const CanvasBoard = () => {
   return (
     <div
       ref={containerRef}
-      className="h-full w-full overflow-hidden bg-dot-pattern"
+      className={cn(
+        "h-full w-full overflow-hidden bg-dot-pattern",
+        isPanning
+          ? "cursor-grabbing"
+          : selectedTool === "Pencil"
+            ? "cursor-crosshair"
+            : selectedTool === "Eraser"
+              ? "cursor-none"
+              : "cursor-default",
+      )}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onDoubleClick={handleDoubleClick}
-      style={{
-        cursor: isPanning
-          ? "grabbing"
-          : selectedTool === "Pencil"
-          ? "crosshair"
-          : selectedTool === "Eraser"
-          ? "none"
-          : "default",
-      }}
     >
       <input
         type="file"
@@ -2273,9 +2342,6 @@ export const CanvasBoard = () => {
       {isCollaborating && (
         <>
           {/* Room Info */}
-          <div className="absolute right-0 top-0 text-align-center p-4 z-10">
-            Room: {state.roomId}
-          </div>
 
           {/* Connection Status */}
           <ConnectionStatus
@@ -2294,7 +2360,7 @@ export const CanvasBoard = () => {
                   position={position}
                   scale={scale}
                 />
-              )
+              ),
           )}
         </>
       )}
@@ -2305,17 +2371,14 @@ export const CanvasBoard = () => {
           data-text-editing="true"
           className="absolute z-50 resize-none border-2 border-blue-500 rounded-md px-2 py-1 
                      bg-background shadow-lg outline-none text-foreground
-                     animate-in fade-in duration-150"
-          style={{
-            left: `${Math.max(0, selectedElement.x * scale + position.x)}px`,
-            top: `${Math.max(0, selectedElement.y * scale + position.y)}px`,
-            fontSize: `${selectedElement.fontSize || 20}px`,
-            fontFamily: "Virgil, Arial, sans-serif",
-            width: "200px",
-            minHeight: "40px",
-            lineHeight: "1.2",
-            pointerEvents: "auto",
-          }}
+                     animate-in fade-in duration-150 canvas-text-overlay pointer-events-auto"
+          style={
+            {
+              "--text-left": `${Math.max(0, selectedElement.x * scale + position.x)}px`,
+              "--text-top": `${Math.max(0, selectedElement.y * scale + position.y)}px`,
+              "--text-size": `${selectedElement.fontSize || 20}px`,
+            } as React.CSSProperties
+          }
           defaultValue={selectedElement.text || ""}
           placeholder="Type your text..."
           autoFocus
@@ -2344,23 +2407,19 @@ export const CanvasBoard = () => {
       {selectedTool === "select" &&
         selectedElement &&
         ["Rectangle", "Diamond", "Circle", "Line", "Arrow", "Image"].includes(
-          selectedElement.type
+          selectedElement.type,
         ) &&
         getResizeHandles(selectedElement).map((handle, idx) => (
           <div
             key={idx}
-            style={{
-              position: "absolute",
-              left: `${handle.x * scale + position.x - 6}px`,
-              top: `${handle.y * scale + position.y - 6}px`,
-              width: "12px",
-              height: "12px",
-              background: "var(--background)",
-              border: "2px solid #007acc",
-              borderRadius: "3px",
-              cursor: handle.cursor,
-              zIndex: 100,
-            }}
+            className="canvas-resize-handle"
+            style={
+              {
+                left: `${handle.x * scale + position.x - 6}px`,
+                top: `${handle.y * scale + position.y - 6}px`,
+                cursor: handle.cursor,
+              } as React.CSSProperties
+            }
             onMouseDown={(e) => {
               e.stopPropagation();
               if (selectedElement) {
@@ -2377,18 +2436,15 @@ export const CanvasBoard = () => {
       {/* Eraser Cursor Overlay */}
       {selectedTool === "Eraser" && eraserPos && (
         <div
-          style={{
-            position: "absolute",
-            left: `${eraserPos.x * scale + position.x - ERASER_RADIUS}px`,
-            top: `${eraserPos.y * scale + position.y - ERASER_RADIUS}px`,
-            width: `${ERASER_RADIUS * 2}px`,
-            height: `${ERASER_RADIUS * 2}px`,
-            border: "2px solid #007acc",
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.1)",
-            pointerEvents: "none",
-            zIndex: 200,
-          }}
+          className="canvas-eraser-cursor"
+          style={
+            {
+              left: `${eraserPos.x * scale + position.x - ERASER_RADIUS}px`,
+              top: `${eraserPos.y * scale + position.y - ERASER_RADIUS}px`,
+              width: `${ERASER_RADIUS * 2}px`,
+              height: `${ERASER_RADIUS * 2}px`,
+            } as React.CSSProperties
+          }
         />
       )}
     </div>

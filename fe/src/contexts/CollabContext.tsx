@@ -1,7 +1,64 @@
 import { be_url } from "@/env/e";
 import { IsInARoom } from "@/lib/ext";
-import React, { useReducer, useEffect, useContext } from "react";
+import React, { useReducer, useEffect, useContext, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import type { Element } from "@/types";
+
+type CollaborativeOperation =
+  | {
+      type: "element_start";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      element?: Element;
+      data?: {
+        element?: Element;
+        tool?: string;
+      };
+    }
+  | {
+      type: "element_create";
+      roomId?: string;
+      elementId?: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      element?: Element;
+      data?: {
+        element?: Element;
+      };
+    }
+  | {
+      type: "element_update";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      data: Partial<Element>;
+    }
+  | {
+      type: "element_complete";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      data: {
+        element: Element;
+      };
+    }
+  | {
+      type: "element_delete";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      data?: Record<string, never>;
+    };
 
 interface CollabState {
   isConnected: boolean;
@@ -9,6 +66,7 @@ interface CollabState {
   isCollaborating: boolean;
   roomId: string | null;
   userId: string | null;
+  pendingOperation: CollaborativeOperation | null;
   collaborators: Array<{
     id: string;
     name: string;
@@ -25,8 +83,28 @@ type CollabAction =
   | { type: "SOCKET_DISCONNECTED" }
   | { type: "SOCKET_ERROR"; payload: string }
   | { type: "JOINING_ROOM"; payload: { roomId: string; userId: string } }
-  | { type: "ROOM_JOINED"; payload: { collaborators: any[]; elements?: any[] } }
-  | { type: "COLLABORATORS_UPDATED"; payload: any[] }
+  | {
+      type: "ROOM_JOINED";
+      payload: {
+        collaborators: Array<{
+          id: string;
+          name: string;
+          color: string;
+          cursor: { x: number; y: number };
+        }>;
+        elements?: Element[];
+      };
+    }
+  | {
+      type: "COLLABORATORS_UPDATED";
+      payload: Array<{
+        id: string;
+        name: string;
+        color: string;
+        cursor: { x: number; y: number };
+      }>;
+    }
+  | { type: "LOCAL_OPERATION_SENT"; payload: CollaborativeOperation }
   | {
       type: "CURSOR_UPDATED";
       payload: { userId: string; cursor: { x: number; y: number } };
@@ -38,7 +116,7 @@ interface CollabContextType {
   state: CollabState;
   joinRoom: (roomId: string, userName: string) => void;
   leaveRoom: () => void;
-  sendOperation: (operation: any) => void;
+  sendOperation: (operation: CollaborativeOperation) => void;
   updateCursor: (cursor: { x: number; y: number }) => void;
   updateDrawingStatus: (isDrawing: boolean, elementId?: string) => void;
   clearError: () => void;
@@ -57,6 +135,7 @@ const initialState: CollabState = {
   isCollaborating: false,
   roomId: null,
   userId: null,
+  pendingOperation: null,
   collaborators: [],
   socket: null,
   error: null,
@@ -64,7 +143,7 @@ const initialState: CollabState = {
 
 const collabReducer = (
   state: CollabState,
-  action: CollabAction
+  action: CollabAction,
 ): CollabState => {
   switch (action.type) {
     case "SOCKET_CONNECTING":
@@ -119,6 +198,12 @@ const collabReducer = (
         error: null,
       };
 
+    case "LOCAL_OPERATION_SENT":
+      return {
+        ...state,
+        pendingOperation: action.payload,
+      };
+
     case "COLLABORATORS_UPDATED":
       return {
         ...state,
@@ -131,7 +216,7 @@ const collabReducer = (
         collaborators: state.collaborators.map((collab) =>
           collab.id === action.payload.userId
             ? { ...collab, cursor: action.payload.cursor }
-            : collab
+            : collab,
         ),
       };
 
@@ -156,19 +241,26 @@ const collabReducer = (
 };
 
 export const CollabContext = React.createContext<CollabContextType | null>(
-  null
+  null,
 );
 
 export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(collabReducer, initialState);
+  const socketRef = useRef<Socket | null>(null);
+  const stateRef = useRef(state);
+  const lastCursorUpdateRef = useRef(0);
 
   useEffect(() => {
-    dispatch({ type: "SOCKET_CONNECTING" });
+    stateRef.current = state;
+  }, [state]);
 
+  useEffect(() => {
     const socket = io(be_url, {
       withCredentials: true,
       transports: ["websocket", "polling"],
+      autoConnect: false,
     });
+    socketRef.current = socket;
 
     socket.on("connect", () => {
       console.log("Socket connected:", socket.id);
@@ -215,27 +307,27 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     socket.on("operation_applied", (data) => {
       // Dispatch custom event for drawing components to handle
       window.dispatchEvent(
-        new CustomEvent("collab_operation", { detail: data })
+        new CustomEvent("collab_operation", { detail: data }),
       );
     });
 
     // Handle laser tool events
-    socket.on("laser_point", ({ userId, point, timestamp }) => {
-      if (userId !== state.userId) {
+    socket.on("laser_point", ({ userId, point, timestamp, color }) => {
+      if (userId !== stateRef.current.userId) {
         window.dispatchEvent(
           new CustomEvent("collab_laser_point", {
-            detail: { userId, point, timestamp },
-          })
+            detail: { userId, point, timestamp, color },
+          }),
         );
       }
     });
 
     socket.on("laser_clear", ({ userId }) => {
-      if (userId !== state.userId) {
+      if (userId !== stateRef.current.userId) {
         window.dispatchEvent(
           new CustomEvent("collab_laser_clear", {
             detail: { userId },
-          })
+          }),
         );
       }
     });
@@ -248,22 +340,25 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("Successfully left room - state updated");
         // Dispatch custom event for components to handle
         window.dispatchEvent(new CustomEvent("room_left_success"));
+        socket.disconnect();
       } else {
         console.error("Failed to leave room:", error);
         window.dispatchEvent(
-          new CustomEvent("room_left_error", { detail: { error } })
+          new CustomEvent("room_left_error", { detail: { error } }),
         );
       }
     });
 
     return () => {
       socket.disconnect();
+      socketRef.current = null;
     };
   }, []);
 
   const joinRoom = (roomId: string, userName: string) => {
-    if (!state.socket || !state.isConnected) {
-      console.error("Socket not connected");
+    const socket = socketRef.current;
+    if (!socket) {
+      console.error("Socket not initialized");
       return;
     }
     const userId = `user_${Date.now()}_${Math.random()
@@ -271,17 +366,28 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
       .substring(2, 8)}`;
     const userColor = getRandomColor();
 
-    dispatch({ type: "JOINING_ROOM", payload: { roomId, userId } });
+    const performJoin = () => {
+      dispatch({ type: "JOINING_ROOM", payload: { roomId, userId } });
+      socket.emit("join_room", {
+        roomId,
+        user: {
+          id: userId,
+          name: userName || `Anonymous ${userId.slice(-4)}`,
+          color: userColor,
+        },
+      });
+    };
 
-    const _socket = state.socket;
-    _socket.emit("join_room", {
-      roomId,
-      user: {
-        id: userId,
-        name: userName || `Anonymous ${userId.slice(-4)}`,
-        color: userColor,
-      },
-    });
+    if (!socket.connected) {
+      dispatch({ type: "SOCKET_CONNECTING" });
+      socket.connect();
+      socket.once("connect", () => {
+        performJoin();
+      });
+      return;
+    }
+
+    performJoin();
   };
 
   const leaveRoom = () => {
@@ -297,7 +403,7 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const sendOperation = (operation: any) => {
+  const sendOperation = (operation: CollaborativeOperation) => {
     if (!state.socket || !state.roomId || !state.isCollaborating) {
       console.warn("Cannot send operation: not in collaboration mode", {
         hasSocket: !!state.socket,
@@ -307,14 +413,23 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    console.log("Sending operation:", operation.type, operation);
+    const enrichedOperation: CollaborativeOperation = {
+      ...operation,
+      authorId: operation.authorId ?? state.userId ?? undefined,
+      timestamp: Date.now(),
+    };
+
+    console.log(
+      "Sending operation:",
+      enrichedOperation.type,
+      enrichedOperation,
+    );
 
     state.socket.emit("drawing_operation", {
       roomId: state.roomId,
       operation: {
-        ...operation,
-        userId: state.userId,
-        timestamp: Date.now(),
+        ...enrichedOperation,
+        userId: state.userId ?? undefined,
       },
     });
   };
@@ -325,13 +440,10 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     // Throttle cursor updates
-    if (
-      (updateCursor as any).lastUpdate &&
-      Date.now() - (updateCursor as any).lastUpdate < 50
-    ) {
+    if (Date.now() - lastCursorUpdateRef.current < 50) {
       return;
     }
-    (updateCursor as any).lastUpdate = Date.now();
+    lastCursorUpdateRef.current = Date.now();
 
     state.socket.emit("cursor_update", {
       roomId: state.roomId,
@@ -363,7 +475,7 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
 
   const checkRoomStatus = async (
     roomId: string,
-    userId: string
+    userId: string,
   ): Promise<boolean> => {
     if (!state.socket || !roomId || !userId) {
       return false;

@@ -90,7 +90,7 @@ export const Left3bar = () => {
       window.removeEventListener("room_left_success", handleSuccess);
       window.removeEventListener(
         "room_left_error",
-        handleError as EventListener
+        handleError as EventListener,
       );
     };
 
@@ -98,12 +98,12 @@ export const Left3bar = () => {
       const customEvent = event as CustomEvent;
       toast.error(
         "Failed to leave room: " +
-          (customEvent.detail?.error || "Unknown error")
+          (customEvent.detail?.error || "Unknown error"),
       );
       window.removeEventListener("room_left_success", handleSuccess);
       window.removeEventListener(
         "room_left_error",
-        handleError as EventListener
+        handleError as EventListener,
       );
     };
 
@@ -121,7 +121,7 @@ export const Left3bar = () => {
       window.removeEventListener("room_left_success", handleSuccess);
       window.removeEventListener(
         "room_left_error",
-        handleError as EventListener
+        handleError as EventListener,
       );
     }
 
@@ -153,7 +153,7 @@ export const Left3bar = () => {
         elements,
         viewport.position,
         viewport.scale,
-        options
+        options,
       );
       toast.success(`Drawing exported as ${options.format.toUpperCase()}`);
     } catch (error) {

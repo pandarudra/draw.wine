@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PlayGround } from "./PlayGround";
 import { useCollab } from "@/contexts/CollabContext";
@@ -23,13 +23,22 @@ const CollabRoom = () => {
 
   const [userName, setUserName] = useState(initialUserName);
   const [isModalOpen, setIsModalOpen] = useState(!initialUserName);
+  const joinRequestRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (roomId && state.isConnected && !state.isCollaborating && userName) {
-      console.log("Joining room:", roomId, "with name:", userName);
-      joinRoom(roomId, userName);
+    if (!roomId || !userName || isModalOpen || state.isCollaborating) {
+      return;
     }
-  }, [roomId, state.isConnected, state.isCollaborating, joinRoom, isModalOpen]);
+
+    const joinKey = `${roomId}:${userName}`;
+    if (joinRequestRef.current === joinKey) {
+      return;
+    }
+
+    joinRequestRef.current = joinKey;
+    console.log("Joining room:", roomId, "with name:", userName);
+    joinRoom(roomId, userName);
+  }, [roomId, userName, isModalOpen, state.isCollaborating, joinRoom]);
 
   // Handle modal submission
   const handleJoin = () => {
