@@ -1,26 +1,6 @@
 import { createContext, useContext, useState } from "react";
+import type { ToolType, DrawingContextType } from "@/types/drawing";
 
-export type ToolType =
-  | "select"
-  | "Rectangle"
-  | "Diamond"
-  | "Circle"
-  | "Arrow"
-  | "Line"
-  | "Pencil"
-  | "Text"
-  | "Image"
-  | "Eraser"
-  | "Laser";
-
-interface DrawingContextType {
-  selectedTool: ToolType;
-  setSelectedTool: (tool: ToolType) => void;
-  strokeColor: string;
-  setStrokeColor: (color: string) => void;
-  strokeWidth: number;
-  setStrokeWidth: (width: number) => void;
-}
 
 const DrawingContext = createContext<DrawingContextType | null>(null);
 

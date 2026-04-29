@@ -8,7 +8,11 @@ import React, {
 import { useDrawing } from "@/contexts/DrawingContext";
 
 import rough from "roughjs";
-import type { Position, Element } from "@/types";
+import type { Position, Element } from "@/types/element";
+import type {
+  Collaborator,
+  CollaborativeOperationPayload,
+} from "@/types/collaboration";
 import { useLaserTrail } from "./LaserTrail";
 import { eraseElements, getResizeHandles } from "@/utils/canvas";
 import { ImageLoader } from "@/utils/imageLoader";
@@ -22,34 +26,6 @@ import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
 import { useCollab } from "@/contexts/CollabContext";
 import { cn } from "@/lib/utils";
 
-type Collaborator = {
-  id: string;
-  name: string;
-  color: string;
-  cursor: { x: number; y: number };
-  isDrawing?: boolean;
-};
-
-type CollaborativeOperationPayload =
-  | {
-      type: "element_create" | "element_start";
-      element?: Element;
-      data?: { element?: Element };
-    }
-  | {
-      type: "element_update";
-      elementId: string;
-      data: Partial<Element>;
-    }
-  | {
-      type: "element_complete";
-      elementId: string;
-      data?: { element?: Element };
-    }
-  | {
-      type: "element_delete";
-      elementId: string;
-    };
 
 // Cursor
 const CollabCursor = ({
