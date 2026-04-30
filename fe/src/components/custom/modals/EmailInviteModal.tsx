@@ -85,7 +85,7 @@ export const EmailInviteModal = ({
       // Generate invitation link
       const baseUrl = window.location.origin;
       const inviteLink = roomId
-        ? `${baseUrl}/collab-room?room=${roomId}&name=`
+        ? `${baseUrl}/collab?room=${roomId}&name=`
         : `${baseUrl}`;
 
       const inviteData = {
