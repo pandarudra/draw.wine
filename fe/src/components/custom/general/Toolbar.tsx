@@ -1,5 +1,5 @@
 import { TOOLBAR_ITEMS } from "@/constants/toolbar";
-import { Menubar } from "../ui/menubar";
+import { Menubar } from "../../ui/menubar";
 import { CMenubtn } from "./menubtn";
 import { memo, useCallback, useEffect, useState } from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
@@ -15,12 +15,12 @@ export const Toolbar = memo(() => {
       const toolType = TOOLBAR_ITEMS[index]?.tooltip || "select";
       setSelectedTool(toolType as ToolType);
     },
-    [setSelectedTool]
+    [setSelectedTool],
   );
 
   useEffect(() => {
     const index = TOOLBAR_ITEMS.findIndex(
-      (item) => item.tooltip === selectedTool
+      (item) => item.tooltip === selectedTool,
     );
     setSelected(index);
   }, [selectedTool]);

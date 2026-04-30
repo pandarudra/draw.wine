@@ -19,14 +19,11 @@ export type ExportFormat = "png" | "jpg" | "svg";
 
 export interface ExportOptions {
   format: ExportFormat;
-  quality?: number; // For JPG export (0-1)
+  quality?: number;
   backgroundColor?: string;
-  scale?: number; // Scale factor for export
+  scale?: number;
 }
 
-/**
- * Exports the canvas as an image file
- */
 export const exportCanvasAsImage = (
   canvasRef: React.RefObject<HTMLCanvasElement>,
   elements: Element[],
@@ -37,16 +34,13 @@ export const exportCanvasAsImage = (
   const canvas = canvasRef.current;
   if (!canvas) return;
 
-  // Create a temporary canvas for export
   const exportCanvas = document.createElement("canvas");
   const ctx = exportCanvas.getContext("2d");
   if (!ctx) return;
 
-  // Calculate bounds of all elements to optimize export size
   const bounds = getElementsBounds(elements);
-  const padding = 50; // Add some padding around the drawing
+  const padding = 50;
 
-  // Set canvas size based on content bounds or minimum size
   const minWidth = 800;
   const minHeight = 600;
   const contentWidth = Math.max(bounds.width + padding * 2, minWidth);
@@ -55,17 +49,13 @@ export const exportCanvasAsImage = (
   exportCanvas.width = contentWidth * (options.scale || 1);
   exportCanvas.height = contentHeight * (options.scale || 1);
 
-  // Set background color if specified
   if (options.backgroundColor) {
     ctx.fillStyle = options.backgroundColor;
     ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
   }
 
-  // Apply scaling
   ctx.scale(options.scale || 1, options.scale || 1);
 
-  // Translate to center content or use bounds offset
-  // Use viewport position and scale to properly position elements
   const offsetX =
     bounds.width > 0
       ? -bounds.minX + padding - position.x / scale
@@ -76,15 +66,12 @@ export const exportCanvasAsImage = (
       : contentHeight / 2;
   ctx.translate(offsetX, offsetY);
 
-  // Create rough canvas for drawing
   const rc = rough.canvas(exportCanvas);
 
-  // Draw all elements
   elements.forEach((element) => {
     drawElementForExport(ctx, rc, element);
   });
 
-  // Export the canvas based on format
   const filename = `drawing-${new Date()
     .toISOString()
     .slice(0, 19)
@@ -109,9 +96,6 @@ export const exportCanvasAsImage = (
   }
 };
 
-/**
- * Saves canvas data as JSON file
- */
 export const saveCanvasAsJSON = (elements: Element[]): void => {
   const data = {
     version: "1.0",
@@ -133,9 +117,6 @@ export const saveCanvasAsJSON = (elements: Element[]): void => {
   downloadBlob(blob, filename);
 };
 
-/**
- * Loads canvas data from JSON file
- */
 export const loadCanvasFromJSON = (): Promise<Element[]> => {
   return new Promise((resolve, reject) => {
     const input = document.createElement("input");
@@ -155,7 +136,6 @@ export const loadCanvasFromJSON = (): Promise<Element[]> => {
           const content = e.target?.result as string;
           const data = JSON.parse(content);
 
-          // Validate the data structure
           if (!data.elements || !Array.isArray(data.elements)) {
             throw new Error("Invalid file format");
           }
@@ -176,9 +156,6 @@ export const loadCanvasFromJSON = (): Promise<Element[]> => {
   });
 };
 
-/**
- * Helper function to calculate bounds of all elements
- */
 const getElementsBounds = (elements: Element[]): ElementsBounds => {
   if (elements.length === 0) {
     return { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0 };
@@ -207,9 +184,6 @@ const getElementsBounds = (elements: Element[]): ElementsBounds => {
   };
 };
 
-/**
- * Helper function to get bounds of a single element
- */
 const getElementBounds = (element: Element): ElementBounds => {
   let minX = element.x;
   let minY = element.y;
@@ -230,10 +204,9 @@ const getElementBounds = (element: Element): ElementBounds => {
     });
   }
 
-  // Add text dimensions if it's a text element
   if (element.type === "Text" && element.text) {
     const fontSize = element.fontSize || 20;
-    const textWidth = element.text.length * fontSize * 0.6; // Rough estimation
+    const textWidth = element.text.length * fontSize * 0.6;
     maxX = Math.max(maxX, element.x + textWidth);
     maxY = Math.max(maxY, element.y + fontSize);
   }
@@ -241,9 +214,6 @@ const getElementBounds = (element: Element): ElementBounds => {
   return { minX, minY, maxX, maxY };
 };
 
-/**
- * Helper function to draw an element for export
- */
 const drawElementForExport = (
   ctx: CanvasRenderingContext2D,
   rc: RoughCanvas,
@@ -310,10 +280,8 @@ const drawElementForExport = (
         const endX = element.x + element.width;
         const endY = element.y + element.height;
 
-        // Draw line
         rc.line(element.x, element.y, endX, endY, options);
 
-        // Draw arrow head
         const angle = Math.atan2(element.height, element.width);
         const arrowLength = 20;
         const arrowAngle = Math.PI / 6;
@@ -386,15 +354,10 @@ const drawElementForExport = (
       break;
 
     case "Image":
-      // Note: Image export would require additional handling for image elements
-      // This would need the actual image data to be stored or accessible
       break;
   }
 };
 
-/**
- * Export as SVG format
- */
 const exportAsSVG = (
   elements: Element[],
   bounds: ElementsBounds,
@@ -425,9 +388,6 @@ const exportAsSVG = (
   downloadBlob(blob, `${filename}.svg`);
 };
 
-/**
- * Convert element to SVG string
- */
 const elementToSVG = (
   element: Element,
   offsetX: number,
@@ -494,9 +454,6 @@ const elementToSVG = (
   return "";
 };
 
-/**
- * Helper function to download a blob as a file
- */
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

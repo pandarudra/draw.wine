@@ -6,11 +6,10 @@ export const isElementInViewport = (
   canvasHeight: number,
   position: Position,
   scale: number,
-  padding: number = 100
+  padding: number = 100,
 ): boolean => {
   if (!element.width || !element.height) return false;
 
-  // Calculate viewport bounds in world coordinates
   const viewportBounds = {
     left: -position.x / scale,
     top: -position.y / scale,
@@ -18,8 +17,6 @@ export const isElementInViewport = (
     bottom: (-position.y + canvasHeight) / scale,
   };
 
-  // Calculate element bounds with padding
-  // Add padding scaled by the inverse of the current scale to maintain consistent padding size
   const scaledPadding = padding / scale;
   const elementBounds = {
     left: element.x - scaledPadding,
@@ -28,7 +25,6 @@ export const isElementInViewport = (
     bottom: element.y + element.height + scaledPadding,
   };
 
-  // Check if element bounds intersect with viewport bounds
   const isVisible = !(
     elementBounds.right < viewportBounds.left ||
     elementBounds.left > viewportBounds.right ||

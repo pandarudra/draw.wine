@@ -1,9 +1,9 @@
-import { CanvasBoard } from "@/components/custom/CanvasBoard";
-import { Left3bar } from "@/components/custom/Left3bar";
-import { Toolbar } from "@/components/custom/Toolbar";
+import { CanvasBoard } from "@/components/custom/canvas/CanvasBoard";
+import { Toolbar } from "@/components/custom/general/Toolbar";
 import { DrawingProvider } from "@/contexts/DrawingContext";
 import { ThemeToggle } from "@/components/custom/ThemeToggle";
-import { PropertiesPanel } from "@/components/custom/PropertiesPanel";
+import { PropertiesPanel } from "@/components/custom/general/PropertiesPanel";
+import { Left3bar } from "@/components/custom/general/Left3bar";
 
 export const PlayGround = () => {
   return (
@@ -18,7 +18,6 @@ export const PlayGround = () => {
         <div className="absolute top-4 right-4 z-10">
           <ThemeToggle />
         </div>
-        {/* Properties Panel (Left Sidebar below Left3bar) */}
         <div className="absolute top-[88px] left-4 z-10">
           <PropertiesPanel />
         </div>

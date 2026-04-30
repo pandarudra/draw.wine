@@ -4,17 +4,14 @@ export class ImageLoader {
     new Map();
 
   static load(url: string): Promise<HTMLImageElement> {
-    // Return cached image if available
     if (this.imageCache.has(url)) {
       return Promise.resolve(this.imageCache.get(url)!);
     }
 
-    // Return existing promise if image is already loading
     if (this.loadingPromises.has(url)) {
       return this.loadingPromises.get(url)!;
     }
 
-    // Create new loading promise
     const promise = new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.src = url;

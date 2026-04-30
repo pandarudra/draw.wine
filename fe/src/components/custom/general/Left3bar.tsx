@@ -1,4 +1,4 @@
-import { Button } from "../ui/button";
+import { Button } from "../../ui/button";
 import { RxHamburgerMenu } from "react-icons/rx";
 import {
   DropdownMenu,
@@ -12,14 +12,14 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
+} from "../../ui/dropdown-menu";
 import { MdSaveAlt, MdOutlineImage, MdOutlineFileUpload } from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
 import { useState, useCallback } from "react";
-import { CreateRoomModal } from "./modals/CreateRoomModal";
-import { JoinRoomModal } from "./modals/JoinRoomModal";
-import { ExportModal } from "./modals/ExportModal";
-import { EmailInviteModal } from "./modals/EmailInviteModal";
+import { CreateRoomModal } from "../modals/CreateRoomModal";
+import { JoinRoomModal } from "../modals/JoinRoomModal";
+import { ExportModal } from "../modals/ExportModal";
+import { EmailInviteModal } from "../modals/EmailInviteModal";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { STORAGE_KEY } from "@/constants/canvas";
 import {
@@ -27,13 +27,13 @@ import {
   saveCanvasAsJSON,
   loadCanvasFromJSON,
   type ExportOptions,
-} from "@/utils/export";
+} from "@/helpers/export.h";
 import {
   getCanvasElement,
   getCanvasElements,
   getCanvasViewport,
   setCanvasElements,
-} from "@/utils/canvasState";
+} from "@/helpers/canvasState.h";
 import { useCollab } from "@/contexts/CollabContext";
 import { toast } from "sonner";
 

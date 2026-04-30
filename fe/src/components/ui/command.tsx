@@ -2,7 +2,7 @@ import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { SearchIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/helpers/cn.h"
 import {
   Dialog,
   DialogContent,

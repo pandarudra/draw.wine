@@ -1,13 +1,6 @@
-import { type FC } from "react";
-import { MenubarMenu, MenubarTrigger } from "../ui/menubar";
+import { MenubarMenu, MenubarTrigger } from "../../ui/menubar";
 import { useTheme } from "@/contexts/ThemeContext";
-
-interface IMenubtn {
-  state: boolean;
-  compoBefore: FC;
-  compoAfter: FC;
-  onClick: () => void;
-}
+import type { IMenubtn } from "@/types/components";
 
 export const CMenubtn = ({
   state,

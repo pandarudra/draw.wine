@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Position } from "@/types";
-
-interface LaserPoint {
-  point: Position;
-  opacity: number;
-  timestamp: number;
-  color: string;
-}
-
-const NEON_RED = "#ff0000"; // Bright red
+import type { LaserPoint } from "@/types/components";
+import { NEON_RED } from "@/constants/ext";
 
 export function useLaserTrail() {
   const [trail, setTrail] = useState<LaserPoint[]>([]);
@@ -24,7 +17,7 @@ export function useLaserTrail() {
             ...point,
             opacity: Math.max(0, 1 - (now - point.timestamp) / 3000), // Fade over 3 seconds
           }))
-          .filter((point) => point.opacity > 0)
+          .filter((point) => point.opacity > 0),
       );
 
       // Always keep animation frame running

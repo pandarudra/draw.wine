@@ -1,7 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import type { ToolType, DrawingContextType } from "@/types/drawing";
 
-
 const DrawingContext = createContext<DrawingContextType | null>(null);
 
 export const DrawingProvider = ({

@@ -1,14 +1,6 @@
-import { getLocalPath } from "@/utils/landing";
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLandingRedirect } from "@/hooks/useLandingRedirect";
 
 export const Landing = () => {
-  const navigate = useNavigate();
-  useEffect(() => {
-    const path: string = getLocalPath();
-    if (path) {
-      navigate(path);
-    }
-  }, [navigate]);
+  useLandingRedirect();
   return <> </>;
 };

@@ -1,6 +1,5 @@
 import type { Element, Position } from "@/types";
 
-// Helper to get handle positions for resizing
 export const getResizeHandles = (element: Element | null) => {
   if (!element) return [];
   switch (element.type) {
@@ -43,25 +42,22 @@ export const getResizeHandles = (element: Element | null) => {
   return [];
 };
 
-// Helper to erase elements under eraser
 export const eraseElements = (
   elements: Element[],
   point: Position,
-  radius: number
+  radius: number,
 ) => {
-  // Helper for point-to-segment distance
   function pointToSegmentDist(
     px: number,
     py: number,
     x1: number,
     y1: number,
     x2: number,
-    y2: number
+    y2: number,
   ) {
     const dx = x2 - x1;
     const dy = y2 - y1;
     if (dx === 0 && dy === 0) {
-      // The segment is a point
       return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
     }
     const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
@@ -75,7 +71,8 @@ export const eraseElements = (
       return !(
         el.points &&
         el.points.some(
-          (p) => Math.sqrt((p.x - point.x) ** 2 + (p.y - point.y) ** 2) < radius
+          (p) =>
+            Math.sqrt((p.x - point.x) ** 2 + (p.y - point.y) ** 2) < radius,
         )
       );
     }

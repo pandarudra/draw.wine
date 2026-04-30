@@ -1,5 +1,5 @@
 import { be_url } from "@/env/e";
-import { IsInARoom } from "@/lib/ext";
+import { IsInARoom } from "@/helpers/collab.h";
 import React, { useReducer, useEffect, useContext, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import type { Element } from "@/types";

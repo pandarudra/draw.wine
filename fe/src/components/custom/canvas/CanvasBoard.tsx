@@ -1,129 +1,26 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useMemo,
-} from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
 
 import rough from "roughjs";
 import type { Position, Element } from "@/types/element";
-import type {
-  Collaborator,
-  CollaborativeOperationPayload,
-} from "@/types/collaboration";
-import { useLaserTrail } from "./LaserTrail";
-import { eraseElements, getResizeHandles } from "@/utils/canvas";
-import { ImageLoader } from "@/utils/imageLoader";
+import type { CollaborativeOperationPayload } from "@/types/collaboration";
+import { useLaserTrail } from "../general/LaserTrail";
+import { eraseElements, getResizeHandles } from "@/helpers/canvas.h";
+import { ImageLoader } from "@/helpers/imageLoader.h";
 import { useTheme } from "@/contexts/ThemeContext";
-import { isElementInViewport } from "@/utils/viewport";
+import { isElementInViewport } from "@/helpers/viewport.h";
 import {
   loadFromLocalStorage,
   saveToLocalStorage,
-} from "@/utils/StoreProgress";
+} from "@/helpers/storeProgress.h";
 import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
 import { useCollab } from "@/contexts/CollabContext";
-import { cn } from "@/lib/utils";
-
-
-// Cursor
-const CollabCursor = ({
-  collaborator,
-  position,
-  scale,
-}: {
-  collaborator: Collaborator;
-  position: Position;
-  scale: number;
-}) => (
-  <div
-    className="absolute pointer-events-none z-50 -translate-x-0.5 -translate-y-0.5"
-    style={{
-      left: `${collaborator.cursor.x * scale + position.x}px`,
-      top: `${collaborator.cursor.y * scale + position.y}px`,
-    }}
-  >
-    <div className="relative">
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        className="drop-shadow-sm"
-      >
-        <path
-          d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
-          fill={collaborator.color}
-          stroke="white"
-          strokeWidth="1"
-        />
-      </svg>
-
-      <div
-        className="absolute top-6 left-2 px-2 py-1 rounded text-white text-xs whitespace-nowrap shadow-lg collab-cursor-label"
-        style={{ "--collab-color": collaborator.color } as React.CSSProperties}
-      >
-        {collaborator.name}
-        {collaborator.isDrawing && (
-          <span className="ml-1 animate-pulse">✏️</span>
-        )}
-      </div>
-    </div>
-  </div>
-);
-
-// Connection Status Component
-const ConnectionStatus = ({
-  isConnected,
-  collaborators,
-}: {
-  isConnected: boolean;
-  collaborators: Collaborator[];
-}) => (
-  <div className="absolute top-16 right-4 z-50 bg-background rounded-lg shadow-lg p-3 max-w-xs border">
-    <div className="flex items-center space-x-2 mb-2 ">
-      <div
-        className={`w-3 h-3 rounded-full flex flex-col ${
-          isConnected ? "bg-green-500" : "bg-red-500"
-        }`}
-      />
-      <span className="text-sm font-medium">
-        {isConnected ? "Connected" : "Disconnected"}
-      </span>
-    </div>
-
-    {collaborators.length > 0 && (
-      <div>
-        <h4 className="text-sm font-semibold mb-2">
-          Active Users ({collaborators.length})
-        </h4>
-        <div className="space-y-1 max-h-32 overflow-y-auto">
-          {collaborators.map((collaborator) => (
-            <div key={collaborator.id} className="flex items-center space-x-2">
-              <div
-                className="w-3 h-3 rounded-full collab-user-dot"
-                style={
-                  {
-                    "--collab-color": collaborator.color,
-                  } as React.CSSProperties
-                }
-              />
-              <span className="text-sm truncate">{collaborator.name}</span>
-              {collaborator.isDrawing && (
-                <span className="text-xs text-gray-500">drawing...</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-);
+import { cn } from "@/helpers/cn.h";
+import { useCanvasBoardState } from "@/hooks/useCanvasBoardState";
+import { ConnectionStatus } from "./ConnectionStatus";
+import { CollabCursor } from "./CollabCursor";
 
 export const CanvasBoard = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const animationFrame = useRef<number | null>(null);
   const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
     useDrawing();
 
@@ -132,47 +29,51 @@ export const CanvasBoard = () => {
     useCollab();
   const { theme } = useTheme();
 
-  // Local state for non-collaborative mode
-  const [localElements, setLocalElements] = useState<Element[]>([]);
-  const [collaborativeElements, setCollaborativeElements] = useState<Element[]>(
-    [],
-  );
+  const {
+    canvasRef,
+    containerRef,
+    animationFrame,
+    isMounted,
+    localElements,
+    setLocalElements,
+    collaborativeElements,
+    setCollaborativeElements,
+    drawing,
+    setDrawing,
+    position,
+    setPosition,
+    startPan,
+    setStartPan,
+    scale,
+    setScale,
+    currentElement,
+    setCurrentElement,
+    isPanning,
+    setIsPanning,
+    isEditingText,
+    setIsEditingText,
+    editingTextId,
+    setEditingTextId,
+    selectedElement,
+    setSelectedElement,
+    isDragging,
+    setIsDragging,
+    dragOffset,
+    setDragOffset,
+    resizing,
+    setResizing,
+    resizeStart,
+    setResizeStart,
+    eraserPos,
+    setEraserPos,
+    selectionArea,
+    setSelectionArea,
+    selectedElements,
+    setSelectedElements,
+    collaborativeLaserTrails,
+    setCollaborativeLaserTrails,
+  } = useCanvasBoardState();
 
-  // Debug collaborative elements
-  useEffect(() => {
-    console.log("=== FRONTEND: Collaborative elements updated ===");
-    console.log("Count:", collaborativeElements.length);
-    console.log(
-      "Elements:",
-      collaborativeElements.map((el) => ({
-        id: el.id,
-        type: el.type,
-        isTemporary: el.isTemporary,
-      })),
-    );
-  }, [collaborativeElements]);
-  const [drawing, setDrawing] = useState(false);
-  const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
-  const [startPan, setStartPan] = useState<Position>({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
-  const [currentElement, setCurrentElement] = useState<Element | null>(null);
-  const [isPanning, setIsPanning] = useState(false);
-  const [isEditingText, setIsEditingText] = useState(false);
-  const [editingTextId, setEditingTextId] = useState<string | null>(null);
-  const [selectedElement, setSelectedElement] = useState<Element | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
-  const [resizing, setResizing] = useState<{
-    corner: string;
-    elementId: string;
-  } | null>(null);
-  const [resizeStart, setResizeStart] = useState<Position | null>(null);
-  const [eraserPos, setEraserPos] = useState<Position | null>(null);
-  const [selectionArea, setSelectionArea] = useState<{
-    start: Position;
-    end: Position;
-  } | null>(null);
-  const [selectedElements, setSelectedElements] = useState<Element[]>([]);
   const laser = useLaserTrail();
 
   // Determine if we're in collaboration mode
@@ -194,18 +95,6 @@ export const CanvasBoard = () => {
     : setLocalElements;
 
   // Store collaborative laser trails from other users
-  const [collaborativeLaserTrails, setCollaborativeLaserTrails] = useState<
-    Map<
-      string,
-      Array<{
-        point: { x: number; y: number };
-        opacity: number;
-        timestamp: number;
-        color: string;
-      }>
-    >
-  >(new Map());
-
   const applyCollaborativeOperation = useCallback(
     (operation: CollaborativeOperationPayload) => {
       if (!operation || !operation.type) {
@@ -1072,14 +961,11 @@ export const CanvasBoard = () => {
   }, [redrawCanvas]);
 
   // Redraw canvas when elements change
-  // Reference to track if component is mounted
-  const isMounted = useRef(true);
-
   useEffect(() => {
     return () => {
       isMounted.current = false;
     };
-  }, []);
+  }, [isMounted]);
 
   useEffect(() => {
     if (isMounted.current) {

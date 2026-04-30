@@ -1,26 +1,7 @@
 import { useDrawing } from "@/contexts/DrawingContext";
 import type { CSSProperties } from "react";
-import { cn } from "@/lib/utils";
-import { Minus } from "lucide-react";
-
-const STROKE_COLORS = [
-  "#000000", // Black
-  "#e03131", // Red
-  "#2f9e44", // Green
-  "#1971c2", // Blue
-  "#f08c00", // Orange
-  "#9c36b5", // Grape
-  "#099268", // Teal
-  "#868e96", // Gray
-  "#d9480f", // Burnt Orange
-  "#1098ad", // Cyan
-];
-
-const STROKE_WIDTHS = [
-  { value: 1, icon: <Minus className="h-4 w-4 stroke-[1]" /> },
-  { value: 3, icon: <Minus className="h-5 w-5 stroke-[3]" /> },
-  { value: 5, icon: <Minus className="h-6 w-6 stroke-[5]" /> },
-];
+import { cn } from "@/helpers/cn.h";
+import { STROKE_COLORS, STROKE_WIDTHS } from "@/constants/ext";
 
 export const PropertiesPanel = () => {
   const {

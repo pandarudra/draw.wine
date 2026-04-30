@@ -1,7 +1,7 @@
 import { useState, useCallback, useContext } from "react";
 import { CollabContext } from "@/contexts/CollabContext";
-import { IsInARoom, hasRoomParams } from "@/lib/ext";
-import type { RoomStatusResponse } from "@/lib/ext";
+import { IsInARoom, hasRoomParams } from "@/helpers/collab.h";
+import type { RoomStatusResponse } from "@/helpers/collab.h";
 
 interface UseRoomStatusOptions {
   onStatusReceived?: (status: RoomStatusResponse) => void;

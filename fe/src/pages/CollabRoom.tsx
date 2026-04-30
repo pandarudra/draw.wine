@@ -1,7 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { PlayGround } from "./PlayGround";
-import { useCollab } from "@/contexts/CollabContext";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,40 +10,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { v4 } from "uuid";
+import { useCollabRoom } from "@/hooks/useCollabRoom";
 
 const CollabRoom = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const roomId = searchParams.get("room") || generateRoomId();
-  const initialUserName = searchParams.get("name") || "";
-  const { state, joinRoom } = useCollab();
-
-  const [userName, setUserName] = useState(initialUserName);
-  const [isModalOpen, setIsModalOpen] = useState(!initialUserName);
-  const joinRequestRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!roomId || !userName || isModalOpen || state.isCollaborating) {
-      return;
-    }
-
-    const joinKey = `${roomId}:${userName}`;
-    if (joinRequestRef.current === joinKey) {
-      return;
-    }
-
-    joinRequestRef.current = joinKey;
-    console.log("Joining room:", roomId, "with name:", userName);
-    joinRoom(roomId, userName);
-  }, [roomId, userName, isModalOpen, state.isCollaborating, joinRoom]);
-
-  // Handle modal submission
-  const handleJoin = () => {
-    if (userName.trim()) {
-      setSearchParams({ room: roomId, name: userName });
-      setIsModalOpen(false);
-    }
-  };
+  const {
+    roomId,
+    userName,
+    setUserName,
+    isModalOpen,
+    setIsModalOpen,
+    handleJoin,
+    state,
+  } = useCollabRoom();
 
   // Show modal for username if missing
   if (isModalOpen) {
@@ -117,9 +92,5 @@ const CollabRoom = () => {
 
   return <PlayGround />;
 };
-
-function generateRoomId(): string {
-  return v4().slice(0, 8);
-}
 
 export default CollabRoom;
