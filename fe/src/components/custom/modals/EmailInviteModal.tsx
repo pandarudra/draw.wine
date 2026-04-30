@@ -85,7 +85,7 @@ export const EmailInviteModal = ({
       // Generate invitation link
       const baseUrl = window.location.origin;
       const inviteLink = roomId
-        ? `${baseUrl}/collab-room?roomId=${roomId}&invite=true`
+        ? `${baseUrl}/collab-room?room=${roomId}&name=`
         : `${baseUrl}`;
 
       const inviteData = {
@@ -114,7 +114,7 @@ export const EmailInviteModal = ({
       toast.success(
         `Invitations sent to ${emails.length} email${
           emails.length > 1 ? "s" : ""
-        }`
+        }`,
       );
 
       // Reset form

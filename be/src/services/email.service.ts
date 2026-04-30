@@ -21,7 +21,7 @@ class EmailService {
     const config = this.validateEmailConfig();
     if (!config.isValid && !this.isDevelopment) {
       console.warn(
-        "⚠️  Email service: Invalid configuration. Running in simulation mode."
+        "⚠️  Email service: Invalid configuration. Running in simulation mode.",
       );
       console.warn(`Missing: ${config.missing.join(", ")}`);
       this.isConfigured = false;
@@ -86,13 +86,13 @@ class EmailService {
         console.log(
           `✅ Simulated email sent to ${email}: message-id-${Date.now()}-${Math.random()
             .toString(36)
-            .substr(2, 9)}`
+            .substr(2, 9)}`,
         );
       }
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
       console.log(
-        `✅ Successfully simulated sending ${emails.length} invitation emails`
+        `✅ Successfully simulated sending ${emails.length} invitation emails`,
       );
       return;
     }
@@ -108,13 +108,13 @@ class EmailService {
         senderName,
         message,
         roomName,
-        inviteLink
+        inviteLink,
       );
       const text = this.generatePlainTextEmail(
         senderName,
         message,
         roomName,
-        inviteLink
+        inviteLink,
       );
 
       // Use Resend batch send for multiple recipients
@@ -125,20 +125,23 @@ class EmailService {
           subject,
           html,
           text,
-        }))
+        })),
       );
 
       if (error) {
         throw new Error(`Resend API error: ${error.message}`);
       }
 
-      console.log(`✅ Successfully sent ${emails.length} invitation emails via Resend`, data);
+      console.log(
+        `✅ Successfully sent ${emails.length} invitation emails via Resend`,
+        data,
+      );
     } catch (error) {
       console.error("❌ Error sending emails:", error);
       throw new Error(
         `Failed to send invitation emails: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     }
   }
@@ -147,7 +150,7 @@ class EmailService {
     senderName: string,
     message: string,
     roomName: string,
-    inviteLink: string
+    inviteLink: string,
   ): string {
     return `
     <!DOCTYPE html>
@@ -158,87 +161,89 @@ class EmailService {
       <title>Invitation to Collaborate</title>
       <style>
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-family: Arial, Helvetica, sans-serif;
           margin: 0;
           padding: 0;
-          background-color: #f9fafb;
+          background-color: #f6f7f9;
           color: #111827;
         }
         .container {
           max-width: 600px;
-          margin: 40px auto;
+          margin: 32px auto;
           background: #ffffff;
-          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
           overflow: hidden;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
         .header {
-          background: linear-gradient(135deg, #6366f1, #4f46e5);
-          padding: 32px;
-          text-align: center;
-          color: #ffffff;
+          padding: 24px 28px;
+          border-bottom: 1px solid #e5e7eb;
+          background: #ffffff;
+          color: #111827;
         }
         .logo {
-          font-size: 26px;
-          font-weight: bold;
-          margin-bottom: 6px;
+          font-size: 18px;
+          font-weight: 700;
+          letter-spacing: 0.2px;
         }
         .title {
-          font-size: 20px;
+          font-size: 18px;
           font-weight: 600;
-          margin: 0;
+          margin: 8px 0 0;
         }
         .content {
-          padding: 28px;
+          padding: 24px 28px;
         }
         .room-info {
-          background-color: #eef2ff;
-          border: 1px solid #c7d2fe;
-          padding: 14px 18px;
+          background-color: #f9fafb;
+          border: 1px solid #e5e7eb;
+          padding: 12px 14px;
           border-radius: 8px;
-          margin: 18px 0;
+          margin: 16px 0;
           font-size: 16px;
           font-weight: 500;
           color: #1f2937;
         }
         .message-box {
-          background: #f9fafb;
-          border-left: 4px solid #6366f1;
-          padding: 16px 20px;
-          margin: 22px 0;
-          border-radius: 6px;
+          background: #f3f4f6;
+          padding: 12px 14px;
+          margin: 16px 0;
+          border-radius: 8px;
           color: #374151;
-          font-size: 15px;
+          font-size: 14px;
           line-height: 1.5;
         }
         .invite-button {
           display: inline-block;
-          background: #6366f1;
+          background: #111827;
           color: #ffffff !important;
           text-decoration: none;
-          padding: 14px 26px;
-          border-radius: 8px;
-          font-size: 16px;
+          padding: 12px 18px;
+          border-radius: 6px;
+          font-size: 15px;
           font-weight: 600;
-          margin: 24px 0;
-          transition: background 0.25s ease;
+          margin: 20px 0;
         }
         .invite-button:hover {
-          background: #4f46e5;
+          background: #0f172a;
         }
         .link-fallback {
           font-size: 14px;
           color: #374151;
-          margin-top: 24px;
+          margin-top: 16px;
           word-break: break-all;
         }
         .footer {
-          background: #f9fafb;
-          padding: 20px;
+          background: #fafafa;
+          padding: 16px 28px;
           text-align: center;
           font-size: 13px;
           color: #6b7280;
           border-top: 1px solid #e5e7eb;
+        }
+        p {
+          margin: 0 0 12px;
+          line-height: 1.5;
         }
         @media (max-width: 600px) {
           .content {
@@ -255,13 +260,11 @@ class EmailService {
     <body>
       <div class="container">
         <div class="header">
-          <div class="logo">🎨 draw.wine</div>
-          <h1 class="title">Collaboration Invitation</h1>
+          <div class="logo">draw.wine</div>
+          <h1 class="title">Collaboration invitation</h1>
         </div>
         <div class="content">
-          <p style="font-size:15px; color:#374151;">
-            <strong>${senderName}</strong> has invited you to join a collaborative drawing session.
-          </p>
+          <p><strong>${senderName}</strong> invited you to a collaborative drawing session.</p>
 
           <div class="room-info">
             <strong>Room:</strong> ${roomName}
@@ -271,28 +274,22 @@ class EmailService {
             message
               ? `
               <div class="message-box">
-                <strong>Personal message from ${senderName}:</strong>
-                <p>${message}</p>
+                <p style="margin:0 0 8px;"><strong>Personal message from ${senderName}:</strong></p>
+                <p style="margin:0;">${message}</p>
               </div>
             `
               : ""
           }
 
           <div style="text-align:center;">
-            <a href="${inviteLink}" class="invite-button">Join Drawing Room</a>
+            <a href="${inviteLink}" class="invite-button">Join drawing room</a>
           </div>
-
-          <p style="font-size: 15px; color: #374151;">
-            Click the button above to start drawing together in real-time.
-          </p>
-
-          <div class="link-fallback">
-            <p>If the button doesn't work, copy and paste this link into your browser:</p>
-            <div>${inviteLink}</div>
-          </div>
+          <p>Click the button above to start drawing together in real time.</p>
+          <p>If the button does not work, copy and paste this link into your browser:</p>
+          <div class="link-fallback">${inviteLink}</div>
         </div>
         <div class="footer">
-          <p>Sent via <strong>draw.wine</strong> — collaborate, sketch, and create in real-time.</p>
+          <p>Sent via <strong>draw.wine</strong>.</p>
           <p>If this invitation is unexpected, you can safely ignore it.</p>
         </div>
       </div>
@@ -305,7 +302,7 @@ class EmailService {
     senderName: string,
     message: string,
     roomName: string,
-    inviteLink: string
+    inviteLink: string,
   ): string {
     return `
 🎨 You're invited to collaborate on draw.wine!
@@ -334,7 +331,7 @@ If you didn't expect this invitation, you can safely ignore this email.
 
       if (!this.resend || !this.isConfigured) {
         console.error(
-          "📧 Email service test: FAILED - Resend client not configured"
+          "📧 Email service test: FAILED - Resend client not configured",
         );
         return false;
       }
