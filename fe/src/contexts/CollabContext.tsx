@@ -2,13 +2,132 @@ import { be_url } from "@/env/e";
 import { IsInARoom } from "@/lib/ext";
 import React, { useReducer, useEffect, useContext, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import type {
-  CollaborativeOperation,
-  CollabState,
-  CollabAction,
-  CollabContextType,
-} from "@/types/collaboration";
+import type { Element } from "@/types";
 
+type CollaborativeOperation =
+  | {
+      type: "element_start";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      element?: Element;
+      data?: {
+        element?: Element;
+        tool?: string;
+      };
+    }
+  | {
+      type: "element_create";
+      roomId?: string;
+      elementId?: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      element?: Element;
+      data?: {
+        element?: Element;
+      };
+    }
+  | {
+      type: "element_update";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      data: Partial<Element>;
+    }
+  | {
+      type: "element_complete";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      data: {
+        element: Element;
+      };
+    }
+  | {
+      type: "element_delete";
+      roomId?: string;
+      elementId: string;
+      authorId?: string;
+      userId?: string;
+      timestamp?: number;
+      data?: Record<string, never>;
+    };
+
+interface CollabState {
+  isConnected: boolean;
+  isConnecting: boolean;
+  isCollaborating: boolean;
+  roomId: string | null;
+  userId: string | null;
+  pendingOperation: CollaborativeOperation | null;
+  collaborators: Array<{
+    id: string;
+    name: string;
+    color: string;
+    cursor: { x: number; y: number };
+  }>;
+  socket: Socket | null;
+  error: string | null;
+}
+
+type CollabAction =
+  | { type: "SOCKET_CONNECTING" }
+  | { type: "SOCKET_CONNECTED"; payload: Socket }
+  | { type: "SOCKET_DISCONNECTED" }
+  | { type: "SOCKET_ERROR"; payload: string }
+  | { type: "JOINING_ROOM"; payload: { roomId: string; userId: string } }
+  | {
+      type: "ROOM_JOINED";
+      payload: {
+        collaborators: Array<{
+          id: string;
+          name: string;
+          color: string;
+          cursor: { x: number; y: number };
+        }>;
+        elements?: Element[];
+      };
+    }
+  | {
+      type: "COLLABORATORS_UPDATED";
+      payload: Array<{
+        id: string;
+        name: string;
+        color: string;
+        cursor: { x: number; y: number };
+      }>;
+    }
+  | { type: "LOCAL_OPERATION_SENT"; payload: CollaborativeOperation }
+  | {
+      type: "CURSOR_UPDATED";
+      payload: { userId: string; cursor: { x: number; y: number } };
+    }
+  | { type: "LEAVE_ROOM" }
+  | { type: "CLEAR_ERROR" };
+
+interface CollabContextType {
+  state: CollabState;
+  joinRoom: (roomId: string, userName: string) => void;
+  leaveRoom: () => void;
+  sendOperation: (operation: CollaborativeOperation) => void;
+  updateCursor: (cursor: { x: number; y: number }) => void;
+  updateDrawingStatus: (isDrawing: boolean, elementId?: string) => void;
+  clearError: () => void;
+  isUserInCurrentRoom: (userId?: string) => boolean;
+  checkRoomStatus: (roomId: string, userId: string) => Promise<boolean>;
+  getCurrentRoomInfo: () => {
+    roomId: string | null;
+    userId: string | null;
+    collaboratorsCount: number;
+  };
+}
 
 const initialState: CollabState = {
   isConnected: false,
@@ -193,11 +312,11 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     // Handle laser tool events
-    socket.on("laser_point", ({ userId, point, timestamp, color }) => {
+    socket.on("laser_point", ({ userId, point, timestamp }) => {
       if (userId !== stateRef.current.userId) {
         window.dispatchEvent(
           new CustomEvent("collab_laser_point", {
-            detail: { userId, point, timestamp, color },
+            detail: { userId, point, timestamp },
           }),
         );
       }

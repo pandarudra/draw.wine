@@ -1,13 +1,13 @@
 import express, { Request, Response } from "express";
 import helmet from "helmet";
-import cors from "cors";
+import cors, { CorsOptions } from "cors";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { CollabDrawingServer } from "./services/socket.service";
 import roomRouter from "./routes/rooms.routes";
 import dotenv from "dotenv";
-import { fe_url, PORT } from "./env/e";
+import { allowedOrigins, PORT } from "./env/e";
 dotenv.config();
 
 const app = express();
@@ -18,17 +18,17 @@ export const httpServer = createServer(app);
 // Initialize collaborative server - this sets up Socket.IO
 const collabServer = CollabDrawingServer.getInstance(httpServer);
 
+const corsOptions: CorsOptions = {
+  origin: allowedOrigins,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+};
+
 // Middleware
 app.use(helmet());
 app.use(compression());
 app.use(express.json());
-app.use(
-  cors({
-    origin: fe_url,
-    methods: ["GET", "POST"],
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
