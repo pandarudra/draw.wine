@@ -6,6 +6,7 @@ export const useCreateRoomModal = () => {
   const [roomName, setRoomName] = useState("");
   const [userName, setUserName] = useState("");
   const [onlyHostCanDraw, setOnlyHostCanDraw] = useState(false);
+  const [requireApproval, setRequireApproval] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -32,18 +33,19 @@ export const useCreateRoomModal = () => {
 
     const collabUrl = `/collab?room=${roomId}&name=${encodeURIComponent(
       userName.trim(),
-    )}${onlyHostCanDraw ? "&onlyHostCanDraw=true" : ""}`;
+    )}${onlyHostCanDraw ? "&onlyHostCanDraw=true" : ""}${requireApproval ? "&requireApproval=true" : ""}`;
 
     navigate(collabUrl);
 
     setRoomName("");
     setUserName("");
     setOnlyHostCanDraw(false);
+    setRequireApproval(false);
   };
 
   const handleCopyInvite = async () => {
     if (!roomId) return;
-    const inviteUrl = `${window.location.origin}/collab?room=${roomId}&name=${onlyHostCanDraw ? "&onlyHostCanDraw=true" : ""}`;
+    const inviteUrl = `${window.location.origin}/collab?room=${roomId}&name=${onlyHostCanDraw ? "&onlyHostCanDraw=true" : ""}${requireApproval ? "&requireApproval=true" : ""}`;
     await navigator.clipboard.writeText(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -63,6 +65,8 @@ export const useCreateRoomModal = () => {
     setUserName,
     onlyHostCanDraw,
     setOnlyHostCanDraw,
+    requireApproval,
+    setRequireApproval,
     isCreating,
     roomId,
     copied,

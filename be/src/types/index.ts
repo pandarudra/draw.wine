@@ -18,7 +18,9 @@ export interface Room {
   hostId?: string;
   settings?: {
     onlyHostCanDraw: boolean;
+    requireApproval: boolean;
   };
+  pendingUsers?: Map<string, { user: Omit<User, "socketId" | "joinedAt">; socketId: string }>;
 }
 
 export interface Element {

@@ -32,7 +32,7 @@ export const ExecSocketEvents = (io: SocketServer) => {
       }: {
         roomId: string;
         user: Omit<User, "socketId" | "joinedAt">;
-        settings?: { onlyHostCanDraw: boolean };
+        settings?: { onlyHostCanDraw: boolean; requireApproval: boolean };
       }) => {
         try {
           console.log(`User ${user.name} joining room ${roomId}`);
@@ -48,7 +48,8 @@ export const ExecSocketEvents = (io: SocketServer) => {
               lastActivity: Date.now(),
               createdAt: Date.now(),
               hostId: user.id,
-              settings: settings || { onlyHostCanDraw: false },
+              settings: settings || { onlyHostCanDraw: false, requireApproval: false },
+              pendingUsers: new Map(),
             });
           }
 
@@ -65,6 +66,40 @@ export const ExecSocketEvents = (io: SocketServer) => {
                 `Removed existing user ${existingUserId} from room ${roomId}`,
               );
             }
+          }
+
+          // Check if approval is required
+          if (
+            room.settings?.requireApproval &&
+            user.id !== room.hostId &&
+            !room.users.has(user.id)
+          ) {
+            // User needs approval
+            if (!room.pendingUsers) {
+              room.pendingUsers = new Map();
+            }
+            
+            room.pendingUsers.set(user.id, {
+              user,
+              socketId: socket.id,
+            });
+
+            console.log(`User ${user.name} is waiting for approval in room ${roomId}`);
+            socket.emit("waiting_for_approval", { roomId });
+
+            // Notify host
+            const host = room.users.get(room.hostId!);
+            if (host) {
+              io.to(host.socketId).emit("join_request", {
+                roomId,
+                guest: {
+                  id: user.id,
+                  name: user.name,
+                  color: user.color || getRandomColor(),
+                },
+              });
+            }
+            return;
           }
 
           // Add user to room
@@ -111,6 +146,81 @@ export const ExecSocketEvents = (io: SocketServer) => {
           socket.emit("error", { message: "Failed to join room" });
         }
       },
+    );
+
+    socket.on(
+      "handle_join_request",
+      ({
+        roomId,
+        guestId,
+        action,
+      }: {
+        roomId: string;
+        guestId: string;
+        action: "accept" | "reject";
+      }) => {
+        try {
+          const room = rooms.get(roomId);
+          if (!room || room.hostId !== Array.from(room.users.values()).find(u => u.socketId === socket.id)?.id) {
+            console.warn(`Unauthorized handle_join_request or room not found: ${roomId}`);
+            return;
+          }
+
+          if (!room.pendingUsers || !room.pendingUsers.has(guestId)) {
+            console.warn(`Guest ${guestId} not found in pendingUsers for room ${roomId}`);
+            return;
+          }
+
+          const pendingInfo = room.pendingUsers.get(guestId)!;
+          room.pendingUsers.delete(guestId);
+
+          if (action === "accept") {
+            const fullUser: User = {
+              ...pendingInfo.user,
+              socketId: pendingInfo.socketId,
+              joinedAt: Date.now(),
+              color: pendingInfo.user.color || getRandomColor(),
+            };
+
+            room.users.set(guestId, fullUser);
+            room.lastActivity = Date.now();
+
+            // Notify the accepted user
+            io.to(pendingInfo.socketId).emit("room_joined", {
+              roomId,
+              elements: room.elements,
+              collaborators: Array.from(room.users.values()).map((u) => ({
+                id: u.id,
+                name: u.name,
+                color: u.color,
+                cursor: u.cursor,
+                isDrawing: u.isDrawing,
+              })),
+              hostId: room.hostId,
+              settings: room.settings,
+            });
+
+            // Notify everyone else
+            socket.to(roomId).emit(
+              "collaborators_updated",
+              Array.from(room.users.values()).map((u) => ({
+                id: u.id,
+                name: u.name,
+                color: u.color,
+                cursor: u.cursor,
+                isDrawing: u.isDrawing,
+              })),
+            );
+
+            console.log(`Host accepted user ${pendingInfo.user.name} into room ${roomId}`);
+          } else {
+            io.to(pendingInfo.socketId).emit("join_rejected", { roomId });
+            console.log(`Host rejected user ${pendingInfo.user.name} for room ${roomId}`);
+          }
+        } catch (error) {
+          console.error("Error handling join request:", error);
+        }
+      }
     );
 
     socket.on("drawing_operation", (data: any) => {

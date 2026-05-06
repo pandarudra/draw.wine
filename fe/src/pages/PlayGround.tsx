@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/custom/ThemeToggle";
 import { PropertiesPanel } from "@/components/custom/general/PropertiesPanel";
 import { Left3bar } from "@/components/custom/general/Left3bar";
 import { InstallButton } from "@/components/custom/general/InstallButton";
+import { JoinRequestsSidebar } from "@/components/custom/general/JoinRequestsSidebar";
 
 export const PlayGround = () => {
   return (
@@ -18,6 +19,7 @@ export const PlayGround = () => {
         </div>
         <div className="absolute top-4 right-4 z-10 flex gap-3">
           <ThemeToggle />
+          <JoinRequestsSidebar />
           <InstallButton />
         </div>
         <div className="absolute top-[88px] left-4 z-10">

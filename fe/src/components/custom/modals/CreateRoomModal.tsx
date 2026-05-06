@@ -28,6 +28,8 @@ export const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
     setUserName,
     onlyHostCanDraw,
     setOnlyHostCanDraw,
+    requireApproval,
+    setRequireApproval,
     isCreating,
     roomId,
     copied,
@@ -87,6 +89,22 @@ export const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
               />
               <Label htmlFor="only-host-draw" className="font-normal text-sm text-muted-foreground">
                 Only host can draw
+              </Label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="require-approval" className="text-right">
+              Privacy
+            </Label>
+            <div className="col-span-3 flex items-center space-x-2">
+              <Switch
+                id="require-approval"
+                checked={requireApproval}
+                onCheckedChange={setRequireApproval}
+              />
+              <Label htmlFor="require-approval" className="font-normal text-sm text-muted-foreground">
+                Require host approval to join
               </Label>
             </div>
           </div>

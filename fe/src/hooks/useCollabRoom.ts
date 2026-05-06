@@ -8,6 +8,7 @@ export const useCollabRoom = () => {
   const roomId = searchParams.get("room") || generateRoomId();
   const initialUserName = searchParams.get("name") || "";
   const onlyHostCanDraw = searchParams.get("onlyHostCanDraw") === "true";
+  const requireApproval = searchParams.get("requireApproval") === "true";
   const { state, joinRoom } = useCollab();
 
   const [userName, setUserName] = useState(initialUserName);
@@ -27,13 +28,14 @@ export const useCollabRoom = () => {
 
     joinRequestRef.current = joinKey;
     console.log("Joining room:", roomId, "with name:", userName);
-    joinRoom(roomId, userName, { onlyHostCanDraw });
-  }, [roomId, userName, isModalOpen, state.isCollaborating, joinRoom, onlyHostCanDraw]);
+    joinRoom(roomId, userName, { onlyHostCanDraw, requireApproval });
+  }, [roomId, userName, isModalOpen, state.isCollaborating, joinRoom, onlyHostCanDraw, requireApproval]);
 
   const handleJoin = () => {
     if (userName.trim()) {
       const params: any = { room: roomId, name: userName };
       if (onlyHostCanDraw) params.onlyHostCanDraw = "true";
+      if (requireApproval) params.requireApproval = "true";
       setSearchParams(params);
       setIsModalOpen(false);
     }

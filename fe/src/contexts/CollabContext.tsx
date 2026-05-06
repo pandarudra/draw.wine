@@ -4,6 +4,13 @@ import React, { useReducer, useEffect, useContext, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import type { Element } from "@/types";
 
+export interface PendingJoinRequest {
+  id: string;
+  name: string;
+  color: string;
+  roomId: string;
+}
+
 type CollaborativeOperation =
   | {
       type: "element_start";
@@ -76,7 +83,10 @@ interface CollabState {
   socket: Socket | null;
   error: string | null;
   hostId: string | null;
-  settings: { onlyHostCanDraw: boolean } | null;
+  settings: { onlyHostCanDraw: boolean; requireApproval: boolean } | null;
+  isWaitingForApproval: boolean;
+  joinRejected: boolean;
+  pendingJoinRequests: PendingJoinRequest[];
 }
 
 type CollabAction =
@@ -96,9 +106,13 @@ type CollabAction =
         }>;
         elements?: Element[];
         hostId?: string;
-        settings?: { onlyHostCanDraw: boolean };
+        settings?: { onlyHostCanDraw: boolean; requireApproval: boolean };
       };
     }
+  | { type: "WAITING_FOR_APPROVAL" }
+  | { type: "JOIN_REJECTED" }
+  | { type: "ADD_JOIN_REQUEST"; payload: PendingJoinRequest }
+  | { type: "REMOVE_JOIN_REQUEST"; payload: string }
   | {
       type: "COLLABORATORS_UPDATED";
       payload: Array<{
@@ -118,7 +132,8 @@ type CollabAction =
 
 interface CollabContextType {
   state: CollabState;
-  joinRoom: (roomId: string, userName: string, settings?: { onlyHostCanDraw: boolean }) => void;
+  joinRoom: (roomId: string, userName: string, settings?: { onlyHostCanDraw: boolean; requireApproval: boolean }) => void;
+  resolveJoinRequest: (guestId: string, action: "accept" | "reject") => void;
   leaveRoom: () => void;
   sendOperation: (operation: CollaborativeOperation) => void;
   updateCursor: (cursor: { x: number; y: number }) => void;
@@ -145,6 +160,9 @@ const initialState: CollabState = {
   error: null,
   hostId: null,
   settings: null,
+  isWaitingForApproval: false,
+  joinRejected: false,
+  pendingJoinRequests: [],
 };
 
 const collabReducer = (
@@ -203,7 +221,42 @@ const collabReducer = (
         collaborators: action.payload.collaborators,
         hostId: action.payload.hostId || null,
         settings: action.payload.settings || null,
+        isWaitingForApproval: false,
+        joinRejected: false,
         error: null,
+      };
+
+    case "WAITING_FOR_APPROVAL":
+      return {
+        ...state,
+        isWaitingForApproval: true,
+        joinRejected: false,
+        error: null,
+      };
+
+    case "JOIN_REJECTED":
+      return {
+        ...state,
+        isWaitingForApproval: false,
+        joinRejected: true,
+        error: null,
+      };
+
+    case "ADD_JOIN_REQUEST":
+      return {
+        ...state,
+        pendingJoinRequests: [
+          ...state.pendingJoinRequests.filter(r => r.id !== action.payload.id),
+          action.payload,
+        ],
+      };
+
+    case "REMOVE_JOIN_REQUEST":
+      return {
+        ...state,
+        pendingJoinRequests: state.pendingJoinRequests.filter(
+          (r) => r.id !== action.payload,
+        ),
       };
 
     case "LOCAL_OPERATION_SENT":
@@ -237,6 +290,9 @@ const collabReducer = (
         collaborators: [],
         hostId: null,
         settings: null,
+        isWaitingForApproval: false,
+        joinRejected: false,
+        pendingJoinRequests: [],
       };
 
     case "CLEAR_ERROR":
@@ -323,6 +379,26 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Dispatch custom event for CanvasBoard to handle elements
       window.dispatchEvent(new CustomEvent("room_joined", { detail: data }));
+    });
+
+    socket.on("waiting_for_approval", () => {
+      dispatch({ type: "WAITING_FOR_APPROVAL" });
+    });
+
+    socket.on("join_rejected", () => {
+      dispatch({ type: "JOIN_REJECTED" });
+    });
+
+    socket.on("join_request", ({ roomId, guest }: { roomId: string; guest: { id: string; name: string; color: string } }) => {
+      dispatch({
+        type: "ADD_JOIN_REQUEST",
+        payload: {
+          id: guest.id,
+          name: guest.name,
+          color: guest.color,
+          roomId,
+        },
+      });
     });
 
     socket.on("collaborators_updated", (collaborators) => {
@@ -443,6 +519,17 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     performJoin();
   };
 
+  const resolveJoinRequest = (guestId: string, action: "accept" | "reject") => {
+    if (state.socket && state.roomId) {
+      state.socket.emit("handle_join_request", {
+        roomId: state.roomId,
+        guestId,
+        action,
+      });
+      dispatch({ type: "REMOVE_JOIN_REQUEST", payload: guestId });
+    }
+  };
+
   const leaveRoom = () => {
     if (state.socket && state.roomId) {
       console.log("Emitting leave_room event for roomId:", state.roomId);
@@ -557,6 +644,7 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   const contextValue: CollabContextType = {
     state,
     joinRoom,
+    resolveJoinRequest,
     leaveRoom,
     sendOperation,
     updateCursor,
