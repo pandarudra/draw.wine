@@ -1526,7 +1526,11 @@ export const CanvasBoard = () => {
         return;
       }
 
-      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      if (
+        e.button === 1 ||
+        (e.button === 0 && e.altKey) ||
+        selectedTool === "Hand"
+      ) {
         setIsPanning(true);
         setStartPan({ x: e.clientX - position.x, y: e.clientY - position.y });
         return;
@@ -2514,11 +2518,13 @@ export const CanvasBoard = () => {
         "h-full w-full overflow-hidden bg-dot-pattern",
         isPanning
           ? "cursor-grabbing"
-          : selectedTool === "Pencil"
-            ? "cursor-crosshair"
-            : selectedTool === "Eraser"
-              ? "cursor-none"
-              : "cursor-default",
+          : selectedTool === "Hand"
+            ? "cursor-grab"
+            : selectedTool === "Pencil"
+              ? "cursor-crosshair"
+              : selectedTool === "Eraser"
+                ? "cursor-none"
+                : "cursor-default",
       )}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

@@ -22,8 +22,8 @@ export const PropertiesPanel = () => {
     (selectedTool === "select" && activeElementTypes.some(isFillable));
 
   const showStroke =
-    (selectedTool !== "select" && selectedTool !== "Eraser" && selectedTool !== "Image") ||
-    (selectedTool === "select" && activeElementTypes.length > 0 && activeElementTypes.some(t => t !== "Eraser" && t !== "Image"));
+    (selectedTool !== "select" && selectedTool !== "Eraser" && selectedTool !== "Image" && selectedTool !== "Hand") ||
+    (selectedTool === "select" && activeElementTypes.length > 0 && activeElementTypes.some(t => t !== "Eraser" && t !== "Image" && t !== "Hand"));
 
   if (!showStroke && !showFill) {
     return null;

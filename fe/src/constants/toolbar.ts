@@ -7,11 +7,12 @@ import {
 } from "react-icons/tb";
 import { FaRegCircle, FaCircle, FaArrowRightLong } from "react-icons/fa6";
 import { MdOutlineHorizontalRule, MdFormatColorText } from "react-icons/md";
-import { LuPencil } from "react-icons/lu";
+import { LuPencil, LuHand } from "react-icons/lu";
 import { CiImageOn, CiEraser } from "react-icons/ci";
 import { ImMagicWand } from "react-icons/im";
 
 export const TOOLBAR_ITEMS = [
+  { before: LuHand, after: LuHand, tooltip: "Hand" },
   { before: BiPointer, after: BiSolidPointer, tooltip: "select" },
   { before: TbRectangle, after: TbRectangleFilled, tooltip: "Rectangle" },
   { before: TbSquareRotated, after: TbSquareRotatedFilled, tooltip: "Diamond" },
