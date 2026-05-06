@@ -25,6 +25,7 @@ export interface Element {
   width?: number;
   height?: number;
   strokeColor: string;
+  fillColor?: string;
   strokeWidth: number;
   roughness?: number;
   seed?: number;

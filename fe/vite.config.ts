@@ -12,15 +12,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico"],
-      devOptions: {
-        enabled: true,
-      },
       manifest: {
         name: "Draw Wine",
         short_name: "DrawWine",
         description: "Offline enabled app",
         theme_color: "#ffffff",
-
         icons: [
           {
             src: "pwa-192x192.png",
@@ -34,9 +30,13 @@ export default defineConfig({
           },
         ],
       },
-
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        runtimeCaching: [], // Optional, you can clear it or leave it
+      },
+      devOptions: {
+        enabled: true,
+        suppressWarnings: true,
       },
     }),
   ],

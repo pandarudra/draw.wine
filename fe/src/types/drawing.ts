@@ -18,4 +18,8 @@ export interface DrawingContextType {
   setStrokeColor: (color: string) => void;
   strokeWidth: number;
   setStrokeWidth: (width: number) => void;
+  fillColor: string | null;
+  setFillColor: (color: string | null) => void;
+  activeElementTypes: ToolType[];
+  setActiveElementTypes: (types: ToolType[]) => void;
 }

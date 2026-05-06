@@ -219,12 +219,24 @@ const drawElementForExport = (
   rc: RoughCanvas,
   element: Element,
 ) => {
-  const options = {
+  const baseOptions = {
     stroke: element.strokeColor,
     strokeWidth: element.strokeWidth,
     roughness: element.roughness || 1,
     seed: element.seed || 1,
   };
+
+  const options =
+    element.fillColor &&
+    (element.type === "Rectangle" ||
+      element.type === "Diamond" ||
+      element.type === "Circle")
+      ? {
+          ...baseOptions,
+          fill: element.fillColor + "80", // 50% transparency
+          fillStyle: "solid" as const,
+        }
+      : baseOptions;
 
   switch (element.type) {
     case "Rectangle":
@@ -397,12 +409,28 @@ const elementToSVG = (
   const y = element.y + offsetY;
   const stroke = element.strokeColor;
   const strokeWidth = element.strokeWidth;
+  const fill = element.fillColor ? element.fillColor + "80" : "none";
 
   switch (element.type) {
     case "Rectangle":
       if (element.width && element.height) {
         return `<rect x="${x}" y="${y}" width="${element.width}" height="${element.height}" 
-                fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+                fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+      }
+      break;
+
+    case "Diamond":
+      if (element.width && element.height) {
+        const points = [
+          [x + element.width / 2, y],
+          [x + element.width, y + element.height / 2],
+          [x + element.width / 2, y + element.height],
+          [x, y + element.height / 2],
+        ]
+          .map((p) => p.join(","))
+          .join(" ");
+
+        return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
       }
       break;
 
@@ -413,7 +441,7 @@ const elementToSVG = (
         const rx = Math.abs(element.width) / 2;
         const ry = Math.abs(element.height) / 2;
         return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" 
-                fill="none" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+                fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
       }
       break;
 

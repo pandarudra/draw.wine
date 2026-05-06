@@ -1,5 +1,13 @@
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
+import { Button } from "@/components/ui/button";
+import { Minus, Plus, Redo2, Undo2 } from "lucide-react";
 
 import rough from "roughjs";
 import type { Position, Element } from "@/types/element";
@@ -20,9 +28,28 @@ import { useCanvasBoardState } from "@/hooks/useCanvasBoardState";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { CollabCursor } from "./CollabCursor";
 
+const MAX_HISTORY = 50;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 5;
+
+const cloneElementsSnapshot = (els: Element[]): Element[] =>
+  els.map((el) => ({
+    ...el,
+    points: el.points ? el.points.map((p) => ({ ...p })) : undefined,
+  }));
+
 export const CanvasBoard = () => {
-  const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
-    useDrawing();
+  const {
+    selectedTool,
+    strokeColor,
+    strokeWidth,
+    fillColor,
+    setSelectedTool,
+    setStrokeColor,
+    setStrokeWidth,
+    setFillColor,
+    setActiveElementTypes,
+  } = useDrawing();
 
   // Get collaboration state
   const { state, sendOperation, updateCursor, updateDrawingStatus } =
@@ -93,6 +120,149 @@ export const CanvasBoard = () => {
   const setElements = isCollaborating
     ? setCollaborativeElements
     : setLocalElements;
+
+  const [undoStack, setUndoStack] = useState<Element[][]>([]);
+  const [redoStack, setRedoStack] = useState<Element[][]>([]);
+  const pendingHistoryRef = useRef<{
+    snapshot: Element[];
+    didMutate: boolean;
+  } | null>(null);
+
+  const beginHistoryAction = useCallback(() => {
+    if (isCollaborating) return;
+    if (pendingHistoryRef.current) return;
+
+    pendingHistoryRef.current = {
+      snapshot: cloneElementsSnapshot(localElements),
+      didMutate: false,
+    };
+  }, [isCollaborating, localElements]);
+
+  const markHistoryActionMutated = useCallback(() => {
+    if (isCollaborating) return;
+    if (pendingHistoryRef.current) {
+      pendingHistoryRef.current.didMutate = true;
+    }
+  }, [isCollaborating]);
+
+  const commitHistoryAction = useCallback(() => {
+    if (isCollaborating) {
+      pendingHistoryRef.current = null;
+      return;
+    }
+
+    const pending = pendingHistoryRef.current;
+    if (!pending) return;
+    pendingHistoryRef.current = null;
+
+    if (!pending.didMutate) return;
+
+    setUndoStack((prev) => {
+      const next = [...prev, pending.snapshot];
+      return next.length > MAX_HISTORY
+        ? next.slice(next.length - MAX_HISTORY)
+        : next;
+    });
+    setRedoStack([]);
+  }, [isCollaborating]);
+
+  const recordHistorySnapshot = useCallback(
+    (snapshot: Element[]) => {
+      if (isCollaborating) return;
+
+      setUndoStack((prev) => {
+        const next = [...prev, cloneElementsSnapshot(snapshot)];
+        return next.length > MAX_HISTORY
+          ? next.slice(next.length - MAX_HISTORY)
+          : next;
+      });
+      setRedoStack([]);
+    },
+    [isCollaborating],
+  );
+
+  const undo = useCallback(() => {
+    if (isCollaborating) return;
+    pendingHistoryRef.current = null;
+
+    setUndoStack((prevUndo) => {
+      if (prevUndo.length === 0) return prevUndo;
+      const snapshot = prevUndo[prevUndo.length - 1];
+
+      setRedoStack((prevRedo) => {
+        const next = [...prevRedo, cloneElementsSnapshot(localElements)];
+        return next.length > MAX_HISTORY
+          ? next.slice(next.length - MAX_HISTORY)
+          : next;
+      });
+
+      setLocalElements(cloneElementsSnapshot(snapshot));
+      setSelectedElement(null);
+      setSelectedElements([]);
+
+      return prevUndo.slice(0, -1);
+    });
+  }, [
+    isCollaborating,
+    localElements,
+    setLocalElements,
+    setSelectedElement,
+    setSelectedElements,
+  ]);
+
+  const redo = useCallback(() => {
+    if (isCollaborating) return;
+    pendingHistoryRef.current = null;
+
+    setRedoStack((prevRedo) => {
+      if (prevRedo.length === 0) return prevRedo;
+      const snapshot = prevRedo[prevRedo.length - 1];
+
+      setUndoStack((prevUndo) => {
+        const next = [...prevUndo, cloneElementsSnapshot(localElements)];
+        return next.length > MAX_HISTORY
+          ? next.slice(next.length - MAX_HISTORY)
+          : next;
+      });
+
+      setLocalElements(cloneElementsSnapshot(snapshot));
+      setSelectedElement(null);
+      setSelectedElements([]);
+
+      return prevRedo.slice(0, -1);
+    });
+  }, [
+    isCollaborating,
+    localElements,
+    setLocalElements,
+    setSelectedElement,
+    setSelectedElements,
+  ]);
+
+  const zoomBy = useCallback(
+    (factor: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const nextScale = Math.min(
+        Math.max(scale * factor, MIN_SCALE),
+        MAX_SCALE,
+      );
+      const delta = nextScale / scale;
+      if (delta === 1) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = rect.width / 2;
+      const y = rect.height / 2;
+
+      setScale(nextScale);
+      setPosition((prev) => ({
+        x: x - (x - prev.x) * delta,
+        y: y - (y - prev.y) * delta,
+      }));
+    },
+    [canvasRef, scale, setPosition, setScale],
+  );
 
   // Store collaborative laser trails from other users
   const applyCollaborativeOperation = useCallback(
@@ -345,6 +515,70 @@ export const CanvasBoard = () => {
     };
   }, [isCollaborating]);
 
+  // Sync selected element types to DrawingContext for PropertiesPanel
+  useEffect(() => {
+    setActiveElementTypes(selectedElements.map((el) => el.type));
+  }, [selectedElements, setActiveElementTypes]);
+
+  // Update selected elements when drawing properties change
+  useEffect(() => {
+    if (selectedElements.length > 0) {
+      setElements((prev) => {
+        let hasChanges = false;
+        const next = prev.map((el) => {
+          if (selectedElements.some((selected) => selected.id === el.id)) {
+            const updatedEl = { ...el };
+            let elChanged = false;
+            
+            if (el.strokeColor !== strokeColor) {
+              updatedEl.strokeColor = strokeColor;
+              elChanged = true;
+            }
+            if (el.strokeWidth !== strokeWidth) {
+              updatedEl.strokeWidth = strokeWidth;
+              elChanged = true;
+            }
+            if (
+              (el.type === "Rectangle" || el.type === "Diamond" || el.type === "Circle") &&
+              el.fillColor !== fillColor
+            ) {
+              updatedEl.fillColor = fillColor || undefined;
+              elChanged = true;
+            }
+            
+            if (elChanged) {
+              hasChanges = true;
+              return updatedEl;
+            }
+          }
+          return el;
+        });
+
+        if (hasChanges) {
+          if (isCollaborating && sendOperation && state.roomId) {
+            next
+              .filter((el) => selectedElements.some((s) => s.id === el.id))
+              .forEach((updatedEl) => {
+                sendOperation({
+                  type: "element_update",
+                  elementId: updatedEl.id,
+                  data: updatedEl,
+                  roomId: state.roomId!,
+                  authorId: state.userId!,
+                });
+              });
+          }
+          // Schedule selected elements update so we don't do it inside the setElements callback directly if not needed,
+          // but React allows setState inside setState occasionally. We will use a timeout just to be safe.
+          setTimeout(() => {
+            setSelectedElements(next.filter((el) => selectedElements.some((s) => s.id === el.id)));
+          }, 0);
+        }
+        return hasChanges ? next : prev;
+      });
+    }
+  }, [strokeColor, strokeWidth, fillColor]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Redraw canvas
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -380,12 +614,24 @@ export const CanvasBoard = () => {
 
     // Draw elements
     elements.forEach((element) => {
-      const options = {
+      const baseOptions = {
         stroke: getStrokeColor(element.strokeColor),
         strokeWidth: element.strokeWidth,
         roughness: element.roughness || 1,
         seed: element.seed || 1,
       };
+
+      const options =
+        element.fillColor &&
+        (element.type === "Rectangle" ||
+          element.type === "Diamond" ||
+          element.type === "Circle")
+          ? {
+              ...baseOptions,
+              fill: getStrokeColor(element.fillColor) + "80", // 50% transparency
+              fillStyle: "solid" as const,
+            }
+          : baseOptions;
 
       // Add visual indicator for elements being drawn by others in collaborative mode
       if (
@@ -842,25 +1088,6 @@ export const CanvasBoard = () => {
   }, [theme, redrawCanvas]);
 
   // Initialize canvas size
-  // Handle delete key press
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        (e.key === "Delete" || e.key === "Backspace") &&
-        selectedElement &&
-        !isEditingText
-      ) {
-        e.preventDefault();
-        setElements((prev) =>
-          prev.filter((el) => el.id !== selectedElement.id),
-        );
-        setSelectedElement(null);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedElement, isEditingText, setElements]);
 
   // Handle tool shortcuts
   useEffect(() => {
@@ -906,6 +1133,39 @@ export const CanvasBoard = () => {
     return () => window.removeEventListener("keydown", handleToolShortcuts);
   }, [isEditingText, setSelectedTool]);
 
+  // Handle undo/redo shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMod = e.ctrlKey || e.metaKey;
+      if (!isMod) return;
+      if (isEditingText) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+
+      if (key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEditingText, redo, undo]);
+
   // Handle delete key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -915,6 +1175,11 @@ export const CanvasBoard = () => {
         (selectedElements.length > 0 || selectedElement)
       ) {
         e.preventDefault();
+
+        if (!isCollaborating) {
+          recordHistorySnapshot(localElements);
+        }
+
         setElements((prev) =>
           prev.filter((el) => {
             // Remove elements that are either in selectedElements array or match selectedElement
@@ -931,7 +1196,15 @@ export const CanvasBoard = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedElement, selectedElements, isEditingText, setElements]);
+  }, [
+    selectedElement,
+    selectedElements,
+    isEditingText,
+    isCollaborating,
+    localElements,
+    recordHistorySnapshot,
+    setElements,
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -980,8 +1253,12 @@ export const CanvasBoard = () => {
     const handleWheelEvent = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        const newScale = Math.min(Math.max(scale * delta, 0.1), 5);
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+        const newScale = Math.min(
+          Math.max(scale * factor, MIN_SCALE),
+          MAX_SCALE,
+        );
+        const delta = newScale / scale;
 
         const rect = element.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -1041,6 +1318,9 @@ export const CanvasBoard = () => {
         if (newText.trim()) {
           const updatedElement = elements.find((el) => el.id === editingTextId);
           if (updatedElement) {
+            if ((updatedElement.text || "") !== newText.trim()) {
+              markHistoryActionMutated();
+            }
             const completedElement = {
               ...updatedElement,
               text: newText.trim(),
@@ -1066,6 +1346,7 @@ export const CanvasBoard = () => {
           }
         } else {
           // Remove empty text elements
+          markHistoryActionMutated();
           setElements((prev) => prev.filter((el) => el.id !== editingTextId));
           setSelectedElement(null);
 
@@ -1084,11 +1365,15 @@ export const CanvasBoard = () => {
 
       setIsEditingText(false);
       setEditingTextId(null);
+
+      commitHistoryAction();
     },
     [
       editingTextId,
       elements,
       isCollaborating,
+      markHistoryActionMutated,
+      commitHistoryAction,
       sendOperation,
       setElements,
       state.roomId,
@@ -1254,6 +1539,7 @@ export const CanvasBoard = () => {
         const clickedElement = getElementAtPoint(point);
 
         if (clickedElement) {
+          beginHistoryAction();
           // Check if clicked element is part of multi-selection
           if (selectedElements.includes(clickedElement) && !e.shiftKey) {
             // Keep multi-selection and prepare for dragging
@@ -1266,6 +1552,9 @@ export const CanvasBoard = () => {
             // Select single element and prepare for dragging
             if (!e.shiftKey) {
               setSelectedElements([clickedElement]);
+              setStrokeColor(clickedElement.strokeColor || strokeColor);
+              setStrokeWidth(clickedElement.strokeWidth || strokeWidth);
+              setFillColor(clickedElement.fillColor || null);
             } else {
               setSelectedElements((prev) => [...prev, clickedElement]);
             }
@@ -1292,6 +1581,7 @@ export const CanvasBoard = () => {
           const dx = point.x - handle.x;
           const dy = point.y - handle.y;
           if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && selectedElement) {
+            beginHistoryAction();
             setResizing({
               corner: handle.corner,
               elementId: selectedElement.id,
@@ -1305,6 +1595,7 @@ export const CanvasBoard = () => {
 
       // Handle Text tool - create text immediately and start editing
       if (selectedTool === "Text") {
+        beginHistoryAction();
         const elementId = isCollaborating
           ? `${state.userId || "local"}-${Date.now()}-${Math.random()
               .toString(36)
@@ -1328,6 +1619,7 @@ export const CanvasBoard = () => {
         };
 
         setElements((prev) => [...prev, newElement]);
+        markHistoryActionMutated();
         startTextEditing(newElement);
 
         if (isCollaborating && sendOperation && state.roomId) {
@@ -1354,9 +1646,13 @@ export const CanvasBoard = () => {
 
       // Handle Eraser tool - immediate erasing on mousedown
       if (selectedTool === "Eraser") {
+        beginHistoryAction();
         const point = getTransformedPoint(e);
         setEraserPos(point);
         const newElements = eraseElements(elements, point, ERASER_RADIUS);
+        if (newElements.length !== elements.length) {
+          markHistoryActionMutated();
+        }
         setElements(newElements);
 
         if (isCollaborating && sendOperation && state.roomId) {
@@ -1377,6 +1673,7 @@ export const CanvasBoard = () => {
       }
 
       // Handle other drawing tools
+      beginHistoryAction();
       setDrawing(true);
       setSelectedElement(null); // Clear selection when drawing
 
@@ -1386,6 +1683,13 @@ export const CanvasBoard = () => {
         x: point.x,
         y: point.y,
         strokeColor,
+        fillColor:
+          (selectedTool === "Rectangle" ||
+            selectedTool === "Diamond" ||
+            selectedTool === "Circle") &&
+          fillColor
+            ? fillColor
+            : undefined,
         strokeWidth,
         roughness: 1,
         seed: Math.floor(Math.random() * 1000),
@@ -1396,6 +1700,7 @@ export const CanvasBoard = () => {
 
       setCurrentElement(newElement);
       setElements((prev) => [...prev, newElement]);
+      markHistoryActionMutated();
 
       if (isCollaborating && sendOperation && state.roomId) {
         sendOperation({
@@ -1417,8 +1722,11 @@ export const CanvasBoard = () => {
       selectedTool,
       getElementAtPoint,
       strokeColor,
+      fillColor,
       strokeWidth,
       elements,
+      beginHistoryAction,
+      markHistoryActionMutated,
       sendOperation,
       state.userId,
       state.roomId,
@@ -1490,6 +1798,9 @@ export const CanvasBoard = () => {
         setEraserPos(point);
         if (e.buttons === 1) {
           const newElements = eraseElements(elements, point, ERASER_RADIUS);
+          if (newElements.length !== elements.length) {
+            markHistoryActionMutated();
+          }
           setElements(newElements);
 
           if (isCollaborating && sendOperation && state.roomId) {
@@ -1622,6 +1933,8 @@ export const CanvasBoard = () => {
         const newX = point.x - dragOffset.x;
         const newY = point.y - dragOffset.y;
 
+        markHistoryActionMutated();
+
         setElements((prev) => {
           const updated = prev.map((el) => {
             if (selectedElements.some((selected) => selected.id === el.id)) {
@@ -1679,6 +1992,7 @@ export const CanvasBoard = () => {
 
       // Handle resizing
       if (resizing && resizeStart && selectedElement) {
+        markHistoryActionMutated();
         setElements((prev) => {
           let updatedElement: Element | null = null;
           const updated = prev.map((el) => {
@@ -1874,6 +2188,8 @@ export const CanvasBoard = () => {
       // Handle drawing for non-select tools
       if (!drawing || !currentElement) return;
 
+      markHistoryActionMutated();
+
       setElements((prev) => {
         const index = prev.findIndex((el) => el.id === currentElement.id);
         if (index === -1) return prev;
@@ -1972,6 +2288,7 @@ export const CanvasBoard = () => {
       state.roomId,
       state.socket,
       state.userId,
+      markHistoryActionMutated,
       setElements,
       setSelectedElement,
     ],
@@ -2028,6 +2345,10 @@ export const CanvasBoard = () => {
     ) {
       setSelectedTool("select");
     }
+
+    if (!isEditingText) {
+      commitHistoryAction();
+    }
   }, [
     drawing,
     currentElement,
@@ -2039,6 +2360,8 @@ export const CanvasBoard = () => {
     setElements,
     selectedTool,
     setSelectedTool,
+    isEditingText,
+    commitHistoryAction,
   ]);
 
   const handleDoubleClick = useCallback(
@@ -2049,8 +2372,13 @@ export const CanvasBoard = () => {
       const point = getTransformedPoint(e);
       const clickedElement = getElementAtPoint(point);
 
-      if (clickedElement && clickedElement.type === "Text") {
-        startTextEditing(clickedElement);
+      if (clickedElement) {
+        if (clickedElement.type === "Text") {
+          if (!clickedElement.isTemporary) {
+            beginHistoryAction();
+          }
+          startTextEditing(clickedElement);
+        }
       } else {
         setSelectedTool("Text");
       }
@@ -2059,6 +2387,7 @@ export const CanvasBoard = () => {
       selectedTool,
       getTransformedPoint,
       getElementAtPoint,
+      beginHistoryAction,
       startTextEditing,
       setSelectedTool,
     ],
@@ -2118,7 +2447,12 @@ export const CanvasBoard = () => {
               aspectRatio: aspectRatio,
             };
 
-            setElements((prev) => [...prev, newElement]);
+            setElements((prev) => {
+              if (!isCollaborating) {
+                recordHistorySnapshot(prev);
+              }
+              return [...prev, newElement];
+            });
             setSelectedElement(newElement);
             setSelectedTool("select"); // Switch to select tool after placing image
 
@@ -2147,6 +2481,7 @@ export const CanvasBoard = () => {
       canvasRef,
       isCollaborating,
       sendOperation,
+      recordHistorySnapshot,
       setElements,
       state.roomId,
       state.userId,
@@ -2285,6 +2620,7 @@ export const CanvasBoard = () => {
             onMouseDown={(e) => {
               e.stopPropagation();
               if (selectedElement) {
+                beginHistoryAction();
                 setResizing({
                   corner: handle.corner,
                   elementId: selectedElement.id,
@@ -2309,6 +2645,61 @@ export const CanvasBoard = () => {
           }
         />
       )}
+
+      {/* Bottom Controls */}
+      <div
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg flex items-center gap-1 p-1"
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={undo}
+          disabled={isCollaborating || undoStack.length === 0 || isEditingText}
+          aria-label="Undo"
+          title="Undo (Ctrl/Cmd+Z)"
+        >
+          <Undo2 />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={redo}
+          disabled={isCollaborating || redoStack.length === 0 || isEditingText}
+          aria-label="Redo"
+          title="Redo (Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y)"
+        >
+          <Redo2 />
+        </Button>
+
+        <div className="mx-1 h-6 w-px bg-border" />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => zoomBy(0.9)}
+          disabled={scale <= MIN_SCALE}
+          aria-label="Zoom out"
+          title="Zoom out"
+        >
+          <Minus />
+        </Button>
+        <div className="px-2 text-sm font-medium tabular-nums min-w-[64px] text-center">
+          {Math.round(scale * 100)}%
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => zoomBy(1.1)}
+          disabled={scale >= MAX_SCALE}
+          aria-label="Zoom in"
+          title="Zoom in"
+        >
+          <Plus />
+        </Button>
+      </div>
     </div>
   );
 };

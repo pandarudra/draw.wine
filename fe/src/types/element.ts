@@ -12,6 +12,7 @@ export interface Element {
   height?: number;
   points?: Position[];
   strokeColor: string;
+  fillColor?: string;
   strokeWidth: number;
   roughness?: number;
   seed?: number;

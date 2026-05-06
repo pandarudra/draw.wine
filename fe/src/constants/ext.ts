@@ -4,16 +4,16 @@ import { Minus } from "lucide-react";
 export const NEON_RED = "#ff0000"; // Bright red
 
 export const STROKE_COLORS = [
-  "#000000", // Black
-  "#e03131", // Red
-  "#2f9e44", // Green
-  "#1971c2", // Blue
-  "#f08c00", // Orange
-  "#9c36b5", // Grape
-  "#099268", // Teal
-  "#868e96", // Gray
-  "#d9480f", // Burnt Orange
-  "#1098ad", // Cyan
+  "#495057", // Soft Black / Dark Gray
+  "#ff8787", // Pastel Red
+  "#8ce99a", // Pastel Green
+  "#74c0fc", // Pastel Blue
+  "#ffd43b", // Pastel Yellow/Orange
+  "#e599f7", // Pastel Grape
+  "#63e6be", // Pastel Teal
+  "#ced4da", // Soft Gray
+  "#ffa94d", // Pastel Burnt Orange
+  "#66d9e8", // Pastel Cyan
 ];
 
 export const STROKE_WIDTHS = [

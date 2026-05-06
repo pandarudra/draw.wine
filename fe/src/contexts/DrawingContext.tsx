@@ -11,6 +11,8 @@ export const DrawingProvider = ({
   const [selectedTool, setSelectedTool] = useState<ToolType>("select");
   const [strokeColor, setStrokeColor] = useState("#000000");
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [fillColor, setFillColor] = useState<string | null>(null);
+  const [activeElementTypes, setActiveElementTypes] = useState<ToolType[]>([]);
 
   return (
     <DrawingContext.Provider
@@ -21,6 +23,10 @@ export const DrawingProvider = ({
         setStrokeColor,
         strokeWidth,
         setStrokeWidth,
+        fillColor,
+        setFillColor,
+        activeElementTypes,
+        setActiveElementTypes,
       }}
     >
       {children}
