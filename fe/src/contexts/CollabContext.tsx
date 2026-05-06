@@ -1,8 +1,15 @@
 import { be_url } from "@/env/e";
 import { IsInARoom } from "@/helpers/collab.h";
-import React, { useReducer, useEffect, useContext, useRef, useState } from "react";
+import React, {
+  useReducer,
+  useEffect,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import { io, Socket } from "socket.io-client";
 import type { Element } from "@/types";
+import { useGeneral } from "./GeneralContext";
 
 export interface PendingJoinRequest {
   id: string;
@@ -132,7 +139,11 @@ type CollabAction =
 
 interface CollabContextType {
   state: CollabState;
-  joinRoom: (roomId: string, userName: string, settings?: { onlyHostCanDraw: boolean; requireApproval: boolean }) => void;
+  joinRoom: (
+    roomId: string,
+    userName: string,
+    settings?: { onlyHostCanDraw: boolean; requireApproval: boolean },
+  ) => void;
   resolveJoinRequest: (guestId: string, action: "accept" | "reject") => void;
   leaveRoom: () => void;
   sendOperation: (operation: CollaborativeOperation) => void;
@@ -248,7 +259,9 @@ const collabReducer = (
       return {
         ...state,
         pendingJoinRequests: [
-          ...state.pendingJoinRequests.filter(r => r.id !== action.payload.id),
+          ...state.pendingJoinRequests.filter(
+            (r) => r.id !== action.payload.id,
+          ),
           action.payload,
         ],
       };
@@ -316,14 +329,7 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(collabReducer, initialState);
   const [isJoinSidebarOpen, setIsJoinSidebarOpen] = useState(false);
   const socketRef = useRef<Socket | null>(null);
-  
-  if (!socketRef.current) {
-    socketRef.current = io(be_url, {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-      autoConnect: false,
-    });
-  }
+  const { setCurrentStage } = useGeneral();
 
   const stateRef = useRef(state);
   const lastCursorUpdateRef = useRef(0);
@@ -333,19 +339,41 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   }, [state]);
 
   useEffect(() => {
-    const socket = socketRef.current!;
+    if (!socketRef.current) {
+      socketRef.current = io(be_url, {
+        withCredentials: true,
+        transports: ["websocket", "polling"],
+        autoConnect: false,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const isUserInsideRoom = Boolean(state.roomId && state.isCollaborating);
+    setCurrentStage(isUserInsideRoom ? "cg" : "lobby");
+  }, [state.roomId, state.isCollaborating, setCurrentStage]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) {
+      return;
+    }
 
     socket.on("connect", () => {
       console.log("Socket connected:", socket.id);
       dispatch({ type: "SOCKET_CONNECTED", payload: socket });
-      
+
       // Auto-rejoin if we were already in a room
       if (stateRef.current.roomId && stateRef.current.userId) {
         console.log("Auto-rejoining room after connection restored...");
         // Re-emit join_room with the current stored userId so we don't duplicate
-        const userName = sessionStorage.getItem(`draw_userName_${stateRef.current.roomId}`) || "Anonymous";
-        const userColor = sessionStorage.getItem(`draw_userColor_${stateRef.current.roomId}`) || getRandomColor();
-        
+        const userName =
+          sessionStorage.getItem(`draw_userName_${stateRef.current.roomId}`) ||
+          "Anonymous";
+        const userColor =
+          sessionStorage.getItem(`draw_userColor_${stateRef.current.roomId}`) ||
+          getRandomColor();
+
         socket.emit("join_room", {
           roomId: stateRef.current.roomId,
           user: {
@@ -392,17 +420,26 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
       dispatch({ type: "JOIN_REJECTED" });
     });
 
-    socket.on("join_request", ({ roomId, guest }: { roomId: string; guest: { id: string; name: string; color: string } }) => {
-      dispatch({
-        type: "ADD_JOIN_REQUEST",
-        payload: {
-          id: guest.id,
-          name: guest.name,
-          color: guest.color,
-          roomId,
-        },
-      });
-    });
+    socket.on(
+      "join_request",
+      ({
+        roomId,
+        guest,
+      }: {
+        roomId: string;
+        guest: { id: string; name: string; color: string };
+      }) => {
+        dispatch({
+          type: "ADD_JOIN_REQUEST",
+          payload: {
+            id: guest.id,
+            name: guest.name,
+            color: guest.color,
+            roomId,
+          },
+        });
+      },
+    );
 
     socket.on("collaborators_updated", (collaborators) => {
       console.log("Collaborators updated:", collaborators);
@@ -467,38 +504,49 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const joinRoom = (roomId: string, userName: string, settings?: { onlyHostCanDraw: boolean }) => {
+  const joinRoom = (
+    roomId: string,
+    userName: string,
+    settings?: { onlyHostCanDraw: boolean },
+  ) => {
     const socket = socketRef.current;
     if (!socket) {
       console.error("Socket not initialized");
       return;
     }
-    
+
     // Check session storage first for existing userId to maintain identity on refresh
     let userId = sessionStorage.getItem(`draw_userId_${roomId}`);
     let userColor = sessionStorage.getItem(`draw_userColor_${roomId}`);
-    
+
     if (!userId) {
       userId = `user_${Date.now()}_${Math.random()
         .toString(36)
         .substring(2, 8)}`;
       sessionStorage.setItem(`draw_userId_${roomId}`, userId);
     }
-    
+
     if (!userColor) {
       userColor = getRandomColor();
       sessionStorage.setItem(`draw_userColor_${roomId}`, userColor);
     }
-    
+
     // Store username for auto-rejoin
     sessionStorage.setItem(`draw_userName_${roomId}`, userName);
 
     const performJoin = () => {
       // Avoid joining multiple times if already joined
-      if (stateRef.current.isCollaborating && stateRef.current.roomId === roomId && stateRef.current.userId === userId) {
+      if (
+        stateRef.current.isCollaborating &&
+        stateRef.current.roomId === roomId &&
+        stateRef.current.userId === userId
+      ) {
         return;
       }
-      dispatch({ type: "JOINING_ROOM", payload: { roomId, userId: userId as string } });
+      dispatch({
+        type: "JOINING_ROOM",
+        payload: { roomId, userId: userId as string },
+      });
       socket.emit("join_room", {
         roomId,
         user: {

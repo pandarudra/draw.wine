@@ -3,6 +3,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { LoadingFallback } from "./components/custom/fallbacks/LoadingFallback";
 import WebFont from "webfontloader";
 import { CollabProvider } from "./contexts/CollabContext";
+import { GeneralProvider } from "./contexts/GeneralContext";
 import CollabRoom from "./pages/CollabRoom";
 import { Toaster } from "./components/ui/sonner";
 import { MobileScreenFallback } from "./components/custom/fallbacks/MobileScreenFallback";
@@ -57,18 +58,20 @@ export const App = () => {
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="draw-wine-theme">
-      <CollabProvider>
-        <BrowserRouter>
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route path="/board/:id" element={<PlayGround />} />
-              <Route path="/collab" element={<CollabRoom />} />
-            </Routes>
-          </Suspense>
-          <Toaster />
-        </BrowserRouter>
-      </CollabProvider>
+      <GeneralProvider>
+        <CollabProvider>
+          <BrowserRouter>
+            <Suspense fallback={<LoadingFallback />}>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/board/:id" element={<PlayGround />} />
+                <Route path="/collab" element={<CollabRoom />} />
+              </Routes>
+            </Suspense>
+            <Toaster />
+          </BrowserRouter>
+        </CollabProvider>
+      </GeneralProvider>
     </ThemeProvider>
   );
 };
