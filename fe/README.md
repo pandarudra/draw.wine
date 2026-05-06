@@ -1,4 +1,4 @@
-# Draw.Wine 🎨
+# Draw.Wine
 
 A modern, web-based drawing application built with React, TypeScript, and Vite. Draw.Wine provides an intuitive interface for creating digital artwork with a rich set of tools and features.
 

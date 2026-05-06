@@ -1,10 +1,10 @@
-# 🎨 Draw.Wine - Collaborative Real-time Drawing Platform
+# Draw.Wine - Collaborative Real-time Drawing Platform
 
 A modern, real-time collaborative drawing application built with React, TypeScript, Node.js, and Socket.IO. Draw.Wine allows multiple users to collaborate on digital canvases in real-time with a rich set of drawing tools and features.
 
-## ✨ Features
+## Features
 
-### 🎯 Drawing Tools
+### Drawing Tools
 
 - **Selection Tool**: Select, move, and resize elements
 - **Basic Shapes**: Rectangle, Diamond, Circle, Arrow, Line
@@ -14,7 +14,7 @@ A modern, real-time collaborative drawing application built with React, TypeScri
 - **Eraser**: Remove elements with precision
 - **Laser Pointer**: Temporary laser trail for presentations
 
-### 🤝 Collaboration Features
+### Collaboration Features
 
 - **Real-time Synchronization**: All drawing operations sync instantly across users
 - **Live Cursors**: See other users' cursors moving in real-time
@@ -22,7 +22,7 @@ A modern, real-time collaborative drawing application built with React, TypeScri
 - **Room-based Sessions**: Join specific rooms for focused collaboration
 - **User Identification**: Custom names and colors for each collaborator
 
-### 🎨 Advanced Drawing Features
+### Advanced Drawing Features
 
 - **Rough.js Integration**: Hand-drawn, sketchy appearance for shapes
 - **Customizable Styling**: Stroke colors, widths, and roughness levels
@@ -31,7 +31,7 @@ A modern, real-time collaborative drawing application built with React, TypeScri
 - **Auto-save**: Automatic local storage of drawing progress
 - **Export Capabilities**: Save drawings locally
 
-### 🔧 Technical Features
+### Technical Features
 
 - **WebSocket Communication**: Real-time bidirectional communication
 - **Responsive Design**: Works on desktop and mobile devices
@@ -39,7 +39,7 @@ A modern, real-time collaborative drawing application built with React, TypeScri
 - **Type Safety**: Full TypeScript implementation
 - **Modern UI**: Radix UI components with Tailwind CSS styling
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -97,7 +97,7 @@ A modern, real-time collaborative drawing application built with React, TypeScri
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:3001
 
-## 🏗️ Architecture
+## Architecture
 
 ### Backend (`/be`)
 
@@ -165,7 +165,7 @@ fe/
 - **Rough.js**: Hand-drawn style graphics
 - **React Router**: Client-side routing
 
-## 🔌 API Documentation
+## API Documentation
 
 ### WebSocket Events
 
@@ -198,7 +198,7 @@ fe/
 | `GET`  | `/health`      | Server health check and connection stats |
 | `GET`  | `/api/rooms/*` | Room management endpoints (extensible)   |
 
-## 🎮 Usage Guide
+## Usage Guide
 
 ### Starting a Drawing Session
 
@@ -223,7 +223,7 @@ fe/
 - **Live Cursors**: See where others are working
 - **Real-time Sync**: All changes appear instantly for everyone
 
-## 🛠️ Development
+## Development
 
 ### Available Scripts
 
@@ -298,7 +298,6 @@ interface Room {
 ### Adding New Features
 
 1. **New Drawing Tool**:
-
    - Add tool to `TOOLBAR_ITEMS` in `constants/toolbar.ts`
    - Implement tool logic in `CanvasBoard.tsx`
    - Add corresponding event handlers
@@ -308,7 +307,7 @@ interface Room {
    - Add client-side handler in `CollabContext.tsx`
    - Update TypeScript interfaces
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -326,7 +325,7 @@ FE_URL_PROD=https://your-domain.com         # Production frontend URL
 - **TypeScript**: Configurations in `tsconfig.json` files
 - **Tailwind**: Styling configuration in `tailwind.config.js`
 
-## 🚀 Deployment
+## Deployment
 
 ### Backend Deployment
 
@@ -368,7 +367,7 @@ EXPOSE 3001
 CMD ["npm", "start"]
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
@@ -385,11 +384,11 @@ CMD ["npm", "start"]
 - Test new features thoroughly
 - Update documentation as needed
 
-## 📄 License
+## License
 
 This project is licensed under the ISC License.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Rough.js** for hand-drawn style graphics
 - **Socket.IO** for real-time communication
@@ -397,7 +396,7 @@ This project is licensed under the ISC License.
 - **Tailwind CSS** for styling utilities
 - **React** and **TypeScript** for the development foundation
 
-## 📞 Support
+## Support
 
 For support, questions, or feature requests, please open an issue on GitHub.
 
