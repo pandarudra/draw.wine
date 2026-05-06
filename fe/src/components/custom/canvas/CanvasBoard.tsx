@@ -517,7 +517,7 @@ export const CanvasBoard = () => {
 
   // Sync selected element types to DrawingContext for PropertiesPanel
   useEffect(() => {
-    setActiveElementTypes(selectedElements.map((el) => el.type));
+    setActiveElementTypes(selectedElements.map((el) => el.type as import("@/types/drawing").ToolType));
   }, [selectedElements, setActiveElementTypes]);
 
   // Update selected elements when drawing properties change
