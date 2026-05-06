@@ -28,9 +28,11 @@ export const ExecSocketEvents = (io: SocketServer) => {
       ({
         roomId,
         user,
+        settings,
       }: {
         roomId: string;
         user: Omit<User, "socketId" | "joinedAt">;
+        settings?: { onlyHostCanDraw: boolean };
       }) => {
         try {
           console.log(`User ${user.name} joining room ${roomId}`);
@@ -45,6 +47,8 @@ export const ExecSocketEvents = (io: SocketServer) => {
               elements: [],
               lastActivity: Date.now(),
               createdAt: Date.now(),
+              hostId: user.id,
+              settings: settings || { onlyHostCanDraw: false },
             });
           }
 
@@ -85,6 +89,8 @@ export const ExecSocketEvents = (io: SocketServer) => {
               cursor: u.cursor,
               isDrawing: u.isDrawing,
             })),
+            hostId: room.hostId,
+            settings: room.settings,
           });
 
           // Notify other users about new collaborator

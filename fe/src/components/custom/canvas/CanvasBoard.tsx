@@ -105,6 +105,8 @@ export const CanvasBoard = () => {
 
   // Determine if we're in collaboration mode
   const isCollaborating = state.isCollaborating;
+  const isHost = state.userId === state.hostId;
+  const canDraw = !state.settings?.onlyHostCanDraw || isHost || !isCollaborating;
   const collaborators = state.collaborators;
   const isConnected = state.isConnected;
 
@@ -1526,15 +1528,14 @@ export const CanvasBoard = () => {
         return;
       }
 
-      if (
-        e.button === 1 ||
-        (e.button === 0 && e.altKey) ||
-        selectedTool === "Hand"
-      ) {
+      if (e.button === 1 || (e.button === 0 && e.altKey) || selectedTool === "Hand") {
         setIsPanning(true);
         setStartPan({ x: e.clientX - position.x, y: e.clientY - position.y });
         return;
       }
+
+      // If user doesn't have draw permissions, prevent further actions
+      if (!canDraw) return;
 
       const point = getTransformedPoint(e);
 
@@ -2370,6 +2371,7 @@ export const CanvasBoard = () => {
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (!canDraw) return;
       // Only handle double-click for text editing when using select tool
       if (selectedTool !== "select") return;
 

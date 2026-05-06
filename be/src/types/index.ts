@@ -15,6 +15,10 @@ export interface Room {
   elements: Element[];
   lastActivity: number;
   createdAt: number;
+  hostId?: string;
+  settings?: {
+    onlyHostCanDraw: boolean;
+  };
 }
 
 export interface Element {

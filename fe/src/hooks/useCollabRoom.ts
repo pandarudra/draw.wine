@@ -7,10 +7,12 @@ export const useCollabRoom = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const roomId = searchParams.get("room") || generateRoomId();
   const initialUserName = searchParams.get("name") || "";
+  const onlyHostCanDraw = searchParams.get("onlyHostCanDraw") === "true";
   const { state, joinRoom } = useCollab();
 
   const [userName, setUserName] = useState(initialUserName);
   const [isModalOpen, setIsModalOpen] = useState(!initialUserName);
+
   const joinRequestRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -25,12 +27,14 @@ export const useCollabRoom = () => {
 
     joinRequestRef.current = joinKey;
     console.log("Joining room:", roomId, "with name:", userName);
-    joinRoom(roomId, userName);
-  }, [roomId, userName, isModalOpen, state.isCollaborating, joinRoom]);
+    joinRoom(roomId, userName, { onlyHostCanDraw });
+  }, [roomId, userName, isModalOpen, state.isCollaborating, joinRoom, onlyHostCanDraw]);
 
   const handleJoin = () => {
     if (userName.trim()) {
-      setSearchParams({ room: roomId, name: userName });
+      const params: any = { room: roomId, name: userName };
+      if (onlyHostCanDraw) params.onlyHostCanDraw = "true";
+      setSearchParams(params);
       setIsModalOpen(false);
     }
   };

@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import type { CreateRoomModalProps } from "@/types/components";
 import { useCreateRoomModal } from "@/hooks/useCreateRoomModal";
 
@@ -25,6 +26,8 @@ export const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
     setRoomName,
     userName,
     setUserName,
+    onlyHostCanDraw,
+    setOnlyHostCanDraw,
     isCreating,
     roomId,
     copied,
@@ -70,6 +73,22 @@ export const CreateRoomModal = ({ isOpen, onClose }: CreateRoomModalProps) => {
               placeholder="Anonymous Artist"
               className="col-span-3"
             />
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="only-host-draw" className="text-right">
+              Read-Only
+            </Label>
+            <div className="col-span-3 flex items-center space-x-2">
+              <Switch
+                id="only-host-draw"
+                checked={onlyHostCanDraw}
+                onCheckedChange={setOnlyHostCanDraw}
+              />
+              <Label htmlFor="only-host-draw" className="font-normal text-sm text-muted-foreground">
+                Only host can draw
+              </Label>
+            </div>
           </div>
 
           {/* oomId + invite link */}

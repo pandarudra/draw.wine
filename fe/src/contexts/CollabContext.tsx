@@ -75,6 +75,8 @@ interface CollabState {
   }>;
   socket: Socket | null;
   error: string | null;
+  hostId: string | null;
+  settings: { onlyHostCanDraw: boolean } | null;
 }
 
 type CollabAction =
@@ -93,6 +95,8 @@ type CollabAction =
           cursor: { x: number; y: number };
         }>;
         elements?: Element[];
+        hostId?: string;
+        settings?: { onlyHostCanDraw: boolean };
       };
     }
   | {
@@ -114,7 +118,7 @@ type CollabAction =
 
 interface CollabContextType {
   state: CollabState;
-  joinRoom: (roomId: string, userName: string) => void;
+  joinRoom: (roomId: string, userName: string, settings?: { onlyHostCanDraw: boolean }) => void;
   leaveRoom: () => void;
   sendOperation: (operation: CollaborativeOperation) => void;
   updateCursor: (cursor: { x: number; y: number }) => void;
@@ -139,6 +143,8 @@ const initialState: CollabState = {
   collaborators: [],
   socket: null,
   error: null,
+  hostId: null,
+  settings: null,
 };
 
 const collabReducer = (
@@ -195,6 +201,8 @@ const collabReducer = (
         ...state,
         isCollaborating: true,
         collaborators: action.payload.collaborators,
+        hostId: action.payload.hostId || null,
+        settings: action.payload.settings || null,
         error: null,
       };
 
@@ -227,6 +235,8 @@ const collabReducer = (
         roomId: null,
         userId: null,
         collaborators: [],
+        hostId: null,
+        settings: null,
       };
 
     case "CLEAR_ERROR":
@@ -247,6 +257,15 @@ export const CollabContext = React.createContext<CollabContextType | null>(
 export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(collabReducer, initialState);
   const socketRef = useRef<Socket | null>(null);
+  
+  if (!socketRef.current) {
+    socketRef.current = io(be_url, {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+      autoConnect: false,
+    });
+  }
+
   const stateRef = useRef(state);
   const lastCursorUpdateRef = useRef(0);
 
@@ -255,16 +274,28 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   }, [state]);
 
   useEffect(() => {
-    const socket = io(be_url, {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-      autoConnect: false,
-    });
-    socketRef.current = socket;
+    const socket = socketRef.current!;
 
     socket.on("connect", () => {
       console.log("Socket connected:", socket.id);
       dispatch({ type: "SOCKET_CONNECTED", payload: socket });
+      
+      // Auto-rejoin if we were already in a room
+      if (stateRef.current.roomId && stateRef.current.userId) {
+        console.log("Auto-rejoining room after connection restored...");
+        // Re-emit join_room with the current stored userId so we don't duplicate
+        const userName = sessionStorage.getItem(`draw_userName_${stateRef.current.roomId}`) || "Anonymous";
+        const userColor = sessionStorage.getItem(`draw_userColor_${stateRef.current.roomId}`) || getRandomColor();
+        
+        socket.emit("join_room", {
+          roomId: stateRef.current.roomId,
+          user: {
+            id: stateRef.current.userId,
+            name: userName,
+            color: userColor,
+          },
+        });
+      }
     });
 
     socket.on("disconnect", (reason) => {
@@ -285,6 +316,8 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
         payload: {
           collaborators: data.collaborators || [],
           elements: data.elements || [],
+          hostId: data.hostId,
+          settings: data.settings,
         },
       });
 
@@ -355,26 +388,46 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  const joinRoom = (roomId: string, userName: string) => {
+  const joinRoom = (roomId: string, userName: string, settings?: { onlyHostCanDraw: boolean }) => {
     const socket = socketRef.current;
     if (!socket) {
       console.error("Socket not initialized");
       return;
     }
-    const userId = `user_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 8)}`;
-    const userColor = getRandomColor();
+    
+    // Check session storage first for existing userId to maintain identity on refresh
+    let userId = sessionStorage.getItem(`draw_userId_${roomId}`);
+    let userColor = sessionStorage.getItem(`draw_userColor_${roomId}`);
+    
+    if (!userId) {
+      userId = `user_${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2, 8)}`;
+      sessionStorage.setItem(`draw_userId_${roomId}`, userId);
+    }
+    
+    if (!userColor) {
+      userColor = getRandomColor();
+      sessionStorage.setItem(`draw_userColor_${roomId}`, userColor);
+    }
+    
+    // Store username for auto-rejoin
+    sessionStorage.setItem(`draw_userName_${roomId}`, userName);
 
     const performJoin = () => {
-      dispatch({ type: "JOINING_ROOM", payload: { roomId, userId } });
+      // Avoid joining multiple times if already joined
+      if (stateRef.current.isCollaborating && stateRef.current.roomId === roomId && stateRef.current.userId === userId) {
+        return;
+      }
+      dispatch({ type: "JOINING_ROOM", payload: { roomId, userId: userId as string } });
       socket.emit("join_room", {
         roomId,
         user: {
           id: userId,
-          name: userName || `Anonymous ${userId.slice(-4)}`,
+          name: userName || `Anonymous ${userId!.slice(-4)}`,
           color: userColor,
         },
+        settings,
       });
     };
 

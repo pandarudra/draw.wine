@@ -5,6 +5,7 @@ import { generateRoomId } from "@/helpers/collab.h";
 export const useCreateRoomModal = () => {
   const [roomName, setRoomName] = useState("");
   const [userName, setUserName] = useState("");
+  const [onlyHostCanDraw, setOnlyHostCanDraw] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -31,17 +32,18 @@ export const useCreateRoomModal = () => {
 
     const collabUrl = `/collab?room=${roomId}&name=${encodeURIComponent(
       userName.trim(),
-    )}`;
+    )}${onlyHostCanDraw ? "&onlyHostCanDraw=true" : ""}`;
 
     navigate(collabUrl);
 
     setRoomName("");
     setUserName("");
+    setOnlyHostCanDraw(false);
   };
 
   const handleCopyInvite = async () => {
     if (!roomId) return;
-    const inviteUrl = `${window.location.origin}/collab?room=${roomId}&name=`;
+    const inviteUrl = `${window.location.origin}/collab?room=${roomId}&name=${onlyHostCanDraw ? "&onlyHostCanDraw=true" : ""}`;
     await navigator.clipboard.writeText(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -59,6 +61,8 @@ export const useCreateRoomModal = () => {
     setRoomName,
     userName,
     setUserName,
+    onlyHostCanDraw,
+    setOnlyHostCanDraw,
     isCreating,
     roomId,
     copied,
