@@ -4,6 +4,7 @@ import { DrawingProvider } from "@/contexts/DrawingContext";
 import { ThemeToggle } from "@/components/custom/ThemeToggle";
 import { PropertiesPanel } from "@/components/custom/general/PropertiesPanel";
 import { Left3bar } from "@/components/custom/general/Left3bar";
+import { InstallButton } from "@/components/custom/general/InstallButton";
 
 export const PlayGround = () => {
   return (
@@ -15,8 +16,9 @@ export const PlayGround = () => {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 p-4 z-10">
           <Toolbar />
         </div>
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-4 right-4 z-10 flex gap-3">
           <ThemeToggle />
+          <InstallButton />
         </div>
         <div className="absolute top-[88px] left-4 z-10">
           <PropertiesPanel />
