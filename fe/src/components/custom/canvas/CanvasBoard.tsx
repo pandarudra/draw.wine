@@ -52,7 +52,7 @@ export const CanvasBoard = () => {
   } = useDrawing();
 
   // Get collaboration state
-  const { state, sendOperation, updateCursor, updateDrawingStatus } =
+  const { state, sendOperation, updateCursor, updateDrawingStatus, isJoinSidebarOpen } =
     useCollab();
   const { theme } = useTheme();
 
@@ -2552,6 +2552,7 @@ export const CanvasBoard = () => {
           <ConnectionStatus
             isConnected={isConnected}
             collaborators={collaborators}
+            visible={!isJoinSidebarOpen}
           />
 
           {/* Collaborator Cursors */}

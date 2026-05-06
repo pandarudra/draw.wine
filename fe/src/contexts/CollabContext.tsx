@@ -1,6 +1,6 @@
 import { be_url } from "@/env/e";
 import { IsInARoom } from "@/helpers/collab.h";
-import React, { useReducer, useEffect, useContext, useRef } from "react";
+import React, { useReducer, useEffect, useContext, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import type { Element } from "@/types";
 
@@ -146,6 +146,8 @@ interface CollabContextType {
     userId: string | null;
     collaboratorsCount: number;
   };
+  isJoinSidebarOpen: boolean;
+  setIsJoinSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const initialState: CollabState = {
@@ -312,6 +314,7 @@ export const CollabContext = React.createContext<CollabContextType | null>(
 
 export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, dispatch] = useReducer(collabReducer, initialState);
+  const [isJoinSidebarOpen, setIsJoinSidebarOpen] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   
   if (!socketRef.current) {
@@ -653,6 +656,8 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     isUserInCurrentRoom,
     checkRoomStatus,
     getCurrentRoomInfo,
+    isJoinSidebarOpen,
+    setIsJoinSidebarOpen,
   };
 
   return (

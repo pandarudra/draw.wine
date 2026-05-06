@@ -4,11 +4,17 @@ import type { Collaborator } from "@/types";
 export const ConnectionStatus = ({
   isConnected,
   collaborators,
+  visible = true,
 }: {
   isConnected: boolean;
   collaborators: Collaborator[];
+  visible?: boolean;
 }) => (
-  <div className="absolute top-16 right-4 z-50 bg-background rounded-lg shadow-lg p-3 max-w-xs border">
+  <div
+    className={`absolute top-16 right-4 z-50 bg-background rounded-lg shadow-lg p-3 max-w-xs border ${
+      visible ? "block" : "hidden"
+    }`}
+  >
     <div className="flex items-center space-x-2 mb-2 ">
       <div
         className={`w-3 h-3 rounded-full flex flex-col ${

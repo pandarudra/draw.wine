@@ -185,6 +185,12 @@ export const ExecSocketEvents = (io: SocketServer) => {
             room.users.set(guestId, fullUser);
             room.lastActivity = Date.now();
 
+            // Make the accepted guest's socket join the Socket.IO room
+            const guestSocket = io.sockets.sockets.get(pendingInfo.socketId);
+            if (guestSocket) {
+              guestSocket.join(roomId);
+            }
+
             // Notify the accepted user
             io.to(pendingInfo.socketId).emit("room_joined", {
               roomId,
@@ -200,8 +206,8 @@ export const ExecSocketEvents = (io: SocketServer) => {
               settings: room.settings,
             });
 
-            // Notify everyone else
-            socket.to(roomId).emit(
+            // Notify ALL users in the room (including the host) about the new collaborator
+            io.to(roomId).emit(
               "collaborators_updated",
               Array.from(room.users.values()).map((u) => ({
                 id: u.id,

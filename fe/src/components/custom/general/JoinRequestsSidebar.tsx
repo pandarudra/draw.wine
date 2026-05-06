@@ -1,10 +1,8 @@
 import { useCollab } from "@/contexts/CollabContext";
-import { useState } from "react";
 import { LuUsers, LuCheck, LuX } from "react-icons/lu";
 
 export const JoinRequestsSidebar = () => {
-  const { state, resolveJoinRequest } = useCollab();
-  const [isOpen, setIsOpen] = useState(false);
+  const { state, resolveJoinRequest, isJoinSidebarOpen, setIsJoinSidebarOpen } = useCollab();
 
   const isHost = state.userId === state.hostId;
   const hasRequests = state.pendingJoinRequests.length > 0;
@@ -18,7 +16,7 @@ export const JoinRequestsSidebar = () => {
     <>
       {/* Toggle button */}
       <button
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => setIsJoinSidebarOpen((prev) => !prev)}
         className="relative p-2.5 rounded-lg border bg-background/80 backdrop-blur-sm shadow-sm hover:bg-accent transition-colors"
         title="Join Requests"
       >
@@ -29,7 +27,7 @@ export const JoinRequestsSidebar = () => {
       </button>
 
       {/* Sidebar panel */}
-      {isOpen && (
+      {isJoinSidebarOpen && (
         <div className="fixed top-0 right-0  h-full w-80 z-100 flex flex-col bg-background/95 backdrop-blur-md border-l shadow-2xl animate-in slide-in-from-right duration-200">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -43,7 +41,7 @@ export const JoinRequestsSidebar = () => {
               )}
             </div>
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={() => setIsJoinSidebarOpen(false)}
               className="p-1 rounded hover:bg-accent transition-colors"
             >
               <LuX className="w-4 h-4" />
